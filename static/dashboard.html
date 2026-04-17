@@ -150,15 +150,62 @@
             } catch (err) { DGSMgt.ui.toast(err.message, 'error'); btn.disabled = false; btn.innerHTML = old; }
         }
 
+        const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+
+        function ansiToHtml(text) {
+            const colors = {
+                30: 'black', 31: '#ef4444', 32: '#4ade80', 33: '#facc15', 
+                34: '#60a5fa', 35: '#c084fc', 36: '#2dd4bf', 37: 'white',
+                90: 'gray', 91: '#f87171', 92: '#86efac', 93: '#fde047',
+                94: '#93c5fd', 95: '#d8b4fe', 96: '#5eead4', 97: 'white'
+            };
+            
+            let html = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            let spanOpen = false;
+            
+            html = html.replace(/\x1b\[([0-9;]*)[mG]/g, (match, codes) => {
+                if (codes === '0' || codes === '') {
+                    const res = spanOpen ? '</span>' : '';
+                    spanOpen = false;
+                    return res;
+                }
+                
+                const parts = codes.split(';');
+                let styles = [];
+                for (let code of parts) {
+                    if (colors[code]) styles.push(`color: ${colors[code]}`);
+                    else if (code === '1') styles.push(`font-weight: bold`);
+                    else if (code === '3') styles.push(`font-style: italic`);
+                    else if (code === '4') styles.push(`text-decoration: underline`);
+                }
+                
+                if (styles.length > 0) {
+                    const prefix = spanOpen ? '</span>' : '';
+                    spanOpen = true;
+                    return `${prefix}<span style="${styles.join(';')}">`;
+                }
+                return '';
+            });
+            
+            if (spanOpen) html += '</span>';
+            return html;
+        }
+
         function openConsole(id, name) {
             const overlay = document.getElementById('consoleOverlay');
             const output = document.getElementById('consoleOutput');
             document.getElementById('consoleTitle').textContent = `Logs: ${name}`;
-            overlay.style.display = 'flex'; output.textContent = 'Connecting...\n';
+            overlay.style.display = 'flex'; output.innerHTML = 'Connecting...<br>';
             if (currentWs) currentWs.close();
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             currentWs = new WebSocket(`${protocol}//${window.location.host}/api/logs/${id}?token=${DGSMgt.api.token()}`);
-            currentWs.onmessage = (e) => { output.textContent += e.data; output.scrollTop = output.scrollHeight; };
+            currentWs.onmessage = (e) => { 
+                const div = document.createElement('div');
+                div.innerHTML = ansiToHtml(e.data);
+                output.appendChild(div);
+                if (output.childNodes.length > 1000) output.removeChild(output.firstChild);
+                output.scrollTop = output.scrollHeight; 
+            };
             currentWs.onerror = () => { DGSMgt.ui.toast('Console connection error', 'error'); };
         }
 
