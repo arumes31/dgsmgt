@@ -80,14 +80,20 @@ func main() {
 	// Assign Servers to Users
 	// Assign all servers to admin
 	for _, server := range servers {
-		database.Model(&users[0]).Association("Servers").Append(&server)
+		if err := database.Model(&users[0]).Association("Servers").Append(&server); err != nil {
+			log.Printf("Failed to assign server %s to admin: %v", server.Name, err)
+		}
 	}
 
 	// Assign first server to user1
-	database.Model(&users[1]).Association("Servers").Append(&servers[0])
+	if err := database.Model(&users[1]).Association("Servers").Append(&servers[0]); err != nil {
+		log.Printf("Failed to assign server to user1: %v", err)
+	}
 
 	// Assign second and third server to user2
-	database.Model(&users[2]).Association("Servers").Append(&servers[1], &servers[2])
+	if err := database.Model(&users[2]).Association("Servers").Append(&servers[1], &servers[2]); err != nil {
+		log.Printf("Failed to assign servers to user2: %v", err)
+	}
 
 	log.Println("Seeding complete!")
 }

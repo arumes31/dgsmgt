@@ -140,7 +140,9 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 		return "", fmt.Errorf("pulling image: %w", err)
 	}
 	defer rc.Close()
-	io.Copy(io.Discard, rc)
+	if _, err := io.Copy(io.Discard, rc); err != nil {
+		return "", fmt.Errorf("reading pull output: %w", err)
+	}
 
 	// Port configuration
 	exposedPorts, portBindings, err := nat.ParsePortSpecs(ports)

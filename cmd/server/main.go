@@ -26,7 +26,9 @@ func main() {
 	if os.Getenv("DEBUG") == "true" {
 		logger, _ = zap.NewDevelopment()
 	}
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 
 	// Configuration
 	dsn := os.Getenv("DATABASE_URL")
@@ -58,7 +60,9 @@ func main() {
 	}
 
 	// Auto Migrate new models
-	database.AutoMigrate(&models.AuditLog{})
+	if err := database.AutoMigrate(&models.AuditLog{}); err != nil {
+		logger.Fatal("Failed to migrate database", zap.Error(err))
+	}
 
 	// Seed Admin User if not exists
 	var count int64
@@ -70,7 +74,9 @@ func main() {
 			PasswordHash: hashedPass,
 			IsAdmin:      true,
 		}
-		database.Create(&user)
+		if err := database.Create(&user).Error; err != nil {
+			logger.Fatal("Failed to create admin user", zap.Error(err))
+		}
 		logger.Info("Created default admin user", zap.String("username", adminUser))
 	}
 
@@ -89,12 +95,15 @@ func main() {
 	database.Where("cron_schedule != ?", "").Find(&servers)
 	for _, s := range servers {
 		serverID := s.ContainerID
-		crunner.AddFunc(s.CronSchedule, func() {
+		_, err := crunner.AddFunc(s.CronSchedule, func() {
 			logger.Info("Cron: restarting server", zap.String("id", serverID))
 			if err := dockerService.Restart(context.Background(), serverID); err != nil {
 				logger.Error("Cron: failed to restart server", zap.String("id", serverID), zap.Error(err))
 			}
 		})
+		if err != nil {
+			logger.Error("Cron: failed to add job", zap.String("id", serverID), zap.Error(err))
+		}
 	}
 	crunner.Start()
 	defer crunner.Stop()

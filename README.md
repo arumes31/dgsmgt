@@ -11,13 +11,20 @@ A modern, lightweight game server management panel built with Go and React.
   - **Users**: Access only to assigned servers with specific permissions (Start, Stop, Restart, View Logs).
 - **Real-time Monitoring**: Real-time container status and live log streaming via WebSockets.
 - **Secure**: JWT-based authentication with bcrypt password hashing.
+- **CI/CD**: Fully automated pipeline with GitHub Actions:
+  - **Linting**: Golangci-lint for code quality.
+  - **Security**: Gosec for automated security scanning.
+  - **Testing**: Automated unit tests on every push.
+  - **Auto-deployment**: Automated Docker image builds pushed to GitHub Container Registry (GHCR) on `main` and `v2_test` branches.
 
 ## Tech Stack
 
 - **Backend**: Go 1.25+
+- **Security**: Gosec, golangci-lint
 - **Database**: SQLite (via GORM)
 - **Frontend**: React 19, Vite 8, Tailwind CSS 4, Framer Motion
 - **Container Engine**: Docker Engine API
+- **Deployment**: GitHub Actions, GHCR, Docker
 
 ## Getting Started
 

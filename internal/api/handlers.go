@@ -668,10 +668,11 @@ func stripDockerHeader(data []byte) []byte {
 			result = append(result, data[i:]...)
 			break
 		}
-		b4 := data[i+4]
-		b5 := data[i+5]
-		b6 := data[i+6]
-		b7 := data[i+7]
+		header := data[i : i+8]
+		b4 := header[4]
+		b5 := header[5]
+		b6 := header[6]
+		b7 := header[7]
 		size := int(b4)<<24 | int(b5)<<16 | int(b6)<<8 | int(b7)
 
 		start := i + 8
