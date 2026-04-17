@@ -111,6 +111,35 @@
             }
             grid.innerHTML = servers.map(s => {
                 const isRunning = s.status.toLowerCase().includes('up');
+                
+                // Permission checks
+                const canStart = s.can_start !== false;
+                const canStop = s.can_stop !== false;
+                const canRestart = s.can_restart !== false;
+                const canViewLogs = s.can_view_logs !== false;
+
+                // Action buttons HTML
+                let actionHtml = '';
+                if (isRunning && canStop) {
+                    actionHtml += `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger btn-sm" style="flex:1">Stop</button>`;
+                } else if (!isRunning && canStart) {
+                    actionHtml += `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary btn-sm" style="flex:1">Start</button>`;
+                } else {
+                    // Placeholder to keep layout consistent if no start/stop permission
+                    actionHtml += `<div style="flex:1"></div>`;
+                }
+
+                if (canRestart) {
+                    actionHtml += `<button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-sm">Restart</button>`;
+                }
+                
+                if (canViewLogs) {
+                    actionHtml += `<button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Logs</button>`;
+                    if (isRunning) {
+                        actionHtml += `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Metrics</button>`;
+                    }
+                }
+
                 return `
                 <div class="server-card">
                     <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:16px;">
@@ -125,13 +154,7 @@
                         <div>Uptime: ${s.uptime || 'N/A'}</div>
                     </div>
                     <div style="display:flex; gap:8px;">
-                        ${isRunning 
-                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger btn-sm" style="flex:1">Stop</button>`
-                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary btn-sm" style="flex:1">Start</button>`
-                        }
-                        <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-sm">Restart</button>
-                        <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Logs</button>
-                        ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Metrics</button>` : ''}
+                        ${actionHtml}
                     </div>
                 </div>`;
             }).join('');
