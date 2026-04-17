@@ -119,6 +119,7 @@
                         }
                         <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-sm">Restart</button>
                         <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Logs</button>
+                        ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Metrics</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -162,6 +163,168 @@
         }
 
         function closeConsole() { if(currentWs) currentWs.close(); document.getElementById('consoleOverlay').style.display='none'; }
+
+        // Metrics Logic
+        let metricsWs = null;
+        let cpuData = [];
+        let ramData = [];
+        const maxDataPoints = 30;
+
+        function openMetrics(id, name) {
+            const existing = document.getElementById('metricsOverlay');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'metricsOverlay';
+            overlay.className = 'console-overlay';
+            overlay.style.display = 'flex';
+            overlay.style.zIndex = '101';
+            overlay.onclick = (e) => { if (e.target === overlay) closeMetrics(); };
+
+            overlay.innerHTML = `
+                <div class="console-window" style="height: 60vh; max-width: 800px; background: #0f172a;">
+                    <div class="console-header">
+                        <span style="font-weight: 600;">Metrics: ${name}</span>
+                        <button onclick="closeMetrics()" class="btn btn-outline btn-sm">Close</button>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; flex-grow: 1; overflow-y: auto;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #94a3b8; font-size: 14px; font-weight: 600;">CPU Usage</span>
+                                <span id="cpuText" style="color: #4ade80; font-family: monospace; font-weight: 600;">0.00%</span>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); height: 160px; position: relative;">
+                                <canvas id="cpuCanvas" style="width: 100%; height: 100%;"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #94a3b8; font-size: 14px; font-weight: 600;">RAM Usage</span>
+                                <span id="ramText" style="color: #60a5fa; font-family: monospace; font-weight: 600;">0 MB / 0 MB (0.00%)</span>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); height: 160px; position: relative;">
+                                <canvas id="ramCanvas" style="width: 100%; height: 100%;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            cpuData = new Array(maxDataPoints).fill(0);
+            ramData = new Array(maxDataPoints).fill(0);
+            
+            initCharts();
+
+            if (metricsWs) metricsWs.close();
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            metricsWs = new WebSocket(`${protocol}//${window.location.host}/api/metrics/${id}?token=${DGSMgt.api.token()}`);
+            
+            metricsWs.onmessage = (e) => {
+                try {
+                    const stats = JSON.parse(e.data);
+                    
+                    // Calculate CPU %
+                    const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+                    const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+                    let cpuPercent = 0.0;
+                    if (systemDelta > 0.0 && cpuDelta > 0.0) {
+                        cpuPercent = (cpuDelta / systemDelta) * stats.cpu_stats.online_cpus * 100.0;
+                    }
+                    
+                    // Calculate RAM
+                    const memUsage = stats.memory_stats.usage - (stats.memory_stats.stats?.cache || 0);
+                    const memLimit = stats.memory_stats.limit;
+                    let memPercent = 0.0;
+                    if (memLimit > 0) {
+                        memPercent = (memUsage / memLimit) * 100.0;
+                    }
+
+                    document.getElementById('cpuText').textContent = `${cpuPercent.toFixed(2)}%`;
+                    document.getElementById('ramText').textContent = `${(memUsage / 1024 / 1024).toFixed(1)} MB / ${(memLimit / 1024 / 1024 / 1024).toFixed(2)} GB (${memPercent.toFixed(2)}%)`;
+
+                    cpuData.push(Math.min(cpuPercent, 100));
+                    cpuData.shift();
+                    ramData.push(Math.min(memPercent, 100));
+                    ramData.shift();
+
+                    drawChart('cpuCanvas', cpuData, '#4ade80', 'rgba(74, 222, 128, 0.1)');
+                    drawChart('ramCanvas', ramData, '#60a5fa', 'rgba(96, 165, 250, 0.1)');
+                } catch (err) {}
+            };
+        }
+
+        function closeMetrics() {
+            if (metricsWs) { metricsWs.close(); metricsWs = null; }
+            const overlay = document.getElementById('metricsOverlay');
+            if (overlay) overlay.remove();
+        }
+
+        function initCharts() {
+            drawChart('cpuCanvas', cpuData, '#4ade80', 'rgba(74, 222, 128, 0.1)');
+            drawChart('ramCanvas', ramData, '#60a5fa', 'rgba(96, 165, 250, 0.1)');
+        }
+
+        function drawChart(canvasId, data, strokeColor, fillColor) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            
+            // Handle high DPI displays
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            
+            const width = rect.width;
+            const height = rect.height;
+            const padding = 10;
+            const chartWidth = width - padding * 2;
+            const chartHeight = height - padding * 2;
+            const stepX = chartWidth / (maxDataPoints - 1);
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Grid
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<=4; i++) {
+                const y = padding + (chartHeight / 4) * i;
+                ctx.moveTo(padding, y);
+                ctx.lineTo(width - padding, y);
+            }
+            ctx.stroke();
+
+            // Draw Line
+            ctx.beginPath();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            
+            data.forEach((val, i) => {
+                const x = padding + i * stepX;
+                const y = height - padding - (val / 100) * chartHeight;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Fill Area
+            ctx.lineTo(width - padding, height - padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.closePath();
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+        }
+
+        window.addEventListener('resize', () => {
+            if (document.getElementById('metricsOverlay')) {
+                drawChart('cpuCanvas', cpuData, '#4ade80', 'rgba(74, 222, 128, 0.1)');
+                drawChart('ramCanvas', ramData, '#60a5fa', 'rgba(96, 165, 250, 0.1)');
+            }
+        });
 
         loadDashboard();
         setInterval(loadDashboard, 30000);
