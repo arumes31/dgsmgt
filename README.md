@@ -1,28 +1,29 @@
 # DGSMgt (Docker Game Server Management)
 
-A modern, lightweight game server management panel built with Go and React.
+A modern, lightweight game server management panel built with Go and plain HTML/JavaScript.
 
 ## Features
 
-- **Modern UI/UX**: Highly dynamic, glassmorphism-inspired design using Tailwind CSS 4 and Framer Motion.
+- **Lightweight UI/UX**: Clean, glassmorphism-inspired design using pure CSS and Vanilla JavaScript.
+- **No Dependencies**: No complex frontend build steps, no node_modules, no external CDNs.
 - **Docker Integration**: Direct integration with Docker Engine API for container management.
 - **RBAC (Role-Based Access Control)**:
   - **Admins**: Full control over users, servers, and assignments.
   - **Users**: Access only to assigned servers with specific permissions (Start, Stop, Restart, View Logs).
-- **Real-time Monitoring**: Real-time container status and live log streaming via WebSockets.
+- **Real-time Monitoring**: Live log streaming via WebSockets.
 - **Secure**: JWT-based authentication with bcrypt password hashing.
 - **CI/CD**: Fully automated pipeline with GitHub Actions:
   - **Linting**: Golangci-lint for code quality.
   - **Security**: Gosec for automated security scanning.
   - **Testing**: Automated unit tests on every push.
-  - **Auto-deployment**: Automated Docker image builds pushed to GitHub Container Registry (GHCR) on `main` and `v2_test` branches.
+  - **Auto-deployment**: Automated Docker image builds pushed to GitHub Container Registry (GHCR).
 
 ## Tech Stack
 
 - **Backend**: Go 1.25+
-- **Security**: Gosec, golangci-lint
+- **Frontend**: Plain HTML5, CSS3, Vanilla JavaScript (ES6+)
+- **Security**: Gosec, golangci-lint, JWT
 - **Database**: SQLite (via GORM)
-- **Frontend**: React 19, Vite 8, Tailwind CSS 4, Framer Motion
 - **Container Engine**: Docker Engine API
 - **Deployment**: GitHub Actions, GHCR, Docker
 
@@ -31,39 +32,24 @@ A modern, lightweight game server management panel built with Go and React.
 ### Prerequisites
 
 - Go 1.25+
-- Node.js 20+
 - Docker Engine (running and accessible via local socket)
 
 ### Development Setup
 
 1. **Clone the repository**
-2. **Backend**:
+2. **Run the server**:
    ```bash
    go run cmd/server/main.go
    ```
    Default admin credentials: `admin` / `admin` (change via environment variables `ADMIN_USER` and `ADMIN_PASSWORD`).
-3. **Frontend**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+3. **Access the portal**:
+   Open `http://localhost:8080` in your browser.
 
-### Production Build
+### Build
 
-1. **Build Frontend**:
+1. **Build Backend**:
    ```bash
-   cd frontend
-   npm run build
-   cd ..
-   ```
-2. **Copy to static**:
-   ```bash
-   cp -r frontend/dist/* static/
-   ```
-3. **Build Backend**:
-   ```bash
-   go build -o dgsmgt.exe ./cmd/server/main.go
+   go build -o dgsmgt ./cmd/server/main.go
    ```
 
 ## Deployment
@@ -97,8 +83,6 @@ You can run the latest pre-built image from the GitHub Container Registry:
    ```bash
    docker-compose up -d
    ```
-
-A template is also available in `docker-compose.ghcr.example.yml`.
 
 ## Configuration
 
