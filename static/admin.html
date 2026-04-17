@@ -264,10 +264,10 @@
                 userBody.innerHTML = users.map(u => `
                     <tr>
                         <td>${u.ID}</td>
-                        <td style="font-weight: 500;">${u.username}</td>
-                        <td><span class="badge ${u.is_admin ? 'badge-admin' : 'badge-user'}">${u.is_admin ? 'Admin' : 'User'}</span></td>
+                        <td style="font-weight: 500;">${u.Username || u.username}</td>
+                        <td><span class="badge ${u.IsAdmin || u.is_admin ? 'badge-admin' : 'badge-user'}">${u.IsAdmin || u.is_admin ? 'Admin' : 'User'}</span></td>
                         <td style="text-align: right;">
-                            ${u.username !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.ID})" title="Delete User">Delete</button>` : '<span style="color: #64748b; font-size: 12px;">Protected</span>'}
+                            ${(u.Username || u.username) !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.ID})" title="Delete User">Delete</button>` : '<span style="color: #64748b; font-size: 12px;">Protected</span>'}
                         </td>
                     </tr>
                 `).join('');
@@ -279,12 +279,12 @@
                 } else {
                     serverBody.innerHTML = allServers.map(s => `
                         <tr>
-                            <td style="font-family: monospace; color: #94a3b8">${s.id || s.ID}</td>
-                            <td style="font-weight: 600;">${s.name}</td>
-                            <td style="font-family: monospace; font-size: 12px; color: #94a3b8">${s.image}</td>
-                            <td><span style="color: ${s.status === 'running' ? '#4ade80' : '#f87171'}">${s.status || 'managed'}</span></td>
+                            <td style="font-family: monospace; color: #94a3b8">${s.ID || s.id}</td>
+                            <td style="font-weight: 600;">${s.Name || s.name}</td>
+                            <td style="font-family: monospace; font-size: 12px; color: #94a3b8">${s.Image || s.image}</td>
+                            <td><span style="color: ${(s.Status || s.status) === 'running' ? '#4ade80' : '#f87171'}">${s.Status || s.status || 'managed'}</span></td>
                             <td style="text-align: right;">
-                                <button class="btn btn-danger btn-sm" onclick="deleteServer(${s.id || s.ID})" title="Delete Server and Container">Delete</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteServer(${s.ID || s.id})" title="Delete Server and Container">Delete</button>
                             </td>
                         </tr>
                     `).join('');
@@ -296,19 +296,21 @@
                     assignBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #64748b;">No server assignments found.</td></tr>';
                 } else {
                     assignBody.innerHTML = assignments.map(a => {
-                        const u = users.find(user => user.ID === a.user_id);
-                        const s = servers.find(server => server.ID === a.server_id);
+                        const uid = a.UserID || a.user_id;
+                        const sid = a.ServerID || a.server_id;
+                        const u = users.find(user => user.ID === uid);
+                        const s = servers.find(server => server.ID === sid);
                         return `
                             <tr>
-                                <td>${u ? u.username : a.user_id}</td>
-                                <td>${s ? s.name : a.server_id}</td>
+                                <td>${u ? (u.Username || u.username) : uid}</td>
+                                <td>${s ? (s.Name || s.name) : sid}</td>
                                 <td style="font-size: 11px; color: #94a3b8">
-                                    <span style="color: ${a.can_start ? '#4ade80' : '#f87171'}">Start</span> &bull; 
-                                    <span style="color: ${a.can_stop ? '#4ade80' : '#f87171'}">Stop</span> &bull; 
-                                    <span style="color: ${a.can_restart ? '#4ade80' : '#f87171'}">Restart</span> &bull; 
-                                    <span style="color: ${a.can_view_logs ? '#4ade80' : '#f87171'}">Logs</span>
+                                    <span style="color: ${a.CanStart || a.can_start ? '#4ade80' : '#f87171'}">Start</span> &bull; 
+                                    <span style="color: ${a.CanStop || a.can_stop ? '#4ade80' : '#f87171'}">Stop</span> &bull; 
+                                    <span style="color: ${a.CanRestart || a.can_restart ? '#4ade80' : '#f87171'}">Restart</span> &bull; 
+                                    <span style="color: ${a.CanViewLogs || a.can_view_logs ? '#4ade80' : '#f87171'}">Logs</span>
                                 </td>
-                                <td style="text-align: right;"><button class="btn btn-danger btn-sm" onclick="deleteAssign(${a.user_id}, ${a.server_id})">Remove</button></td>
+                                <td style="text-align: right;"><button class="btn btn-danger btn-sm" onclick="deleteAssign(${uid}, ${sid})">Remove</button></td>
                             </tr>
                         `;
                     }).join('');
