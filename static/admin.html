@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration | DGSMgt</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        .sidebar { background: var(--sidebar-bg); border-right: 1px solid var(--glass-border); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+        .main-content { padding: 32px; overflow-y: auto; }
+        .admin-section { background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; padding: 24px; margin-bottom: 32px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid var(--glass-border); color: #94a3b8; font-size: 13px; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid var(--glass-border); font-size: 14px; }
+        .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        nav a { display: flex; align-items: center; gap: 12px; padding: 12px; color: #94a3b8; text-decoration: none; border-radius: 10px; }
+        nav a:hover, nav a.active { background: rgba(255,255,255,0.05); color: white; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div style="font-weight: 700; font-size: 20px; margin-bottom: 20px;">DGSMgt</div>
+            <nav style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="/dashboard.html">Dashboard</a>
+                <a href="/admin.html" class="active">Administration</a>
+            </nav>
+            <div style="margin-top: auto;">
+                <button onclick="logout()" class="btn" style="width: 100%; background: transparent; border: 1px solid #333; color: white;">Logout</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <h1>System Administration</h1>
+
+            <section class="admin-section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>User Management</h2>
+                    <button class="btn btn-primary" onclick="alert('Feature coming soon')">+ New User</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr><th>ID</th><th>Username</th><th>Role</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="userTableBody"></tbody>
+                </table>
+            </section>
+
+            <section class="admin-section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>Server Management</h2>
+                    <button class="btn btn-primary" onclick="alert('Feature coming soon')">+ Create Server</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Image</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="serverTableBody"></tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        if (!localStorage.getItem('token')) window.location.href = '/login.html';
+
+        async function loadAdmin() {
+            try {
+                const users = await API.get('/api/admin/users');
+                const servers = await API.get('/api/admin/servers');
+
+                if (!users) {
+                    window.location.href = '/dashboard.html'; // Not admin
+                    return;
+                }
+
+                const userBody = document.getElementById('userTableBody');
+                userBody.innerHTML = users.map(u => `
+                    <tr>
+                        <td>${u.ID}</td>
+                        <td>${u.username}</td>
+                        <td>${u.is_admin ? '<span style="color: #fbbf24">Admin</span>' : 'User'}</td>
+                        <td><button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;">Delete</button></td>
+                    </tr>
+                `).join('');
+
+                const serverBody = document.getElementById('serverTableBody');
+                serverBody.innerHTML = servers.map(s => `
+                    <tr>
+                        <td>${s.id || s.ID}</td>
+                        <td>${s.name}</td>
+                        <td style="font-family: monospace; color: #94a3b8">${s.image}</td>
+                        <td>${s.status || 'managed'}</td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        loadAdmin();
+    </script>
+</body>
+</html>

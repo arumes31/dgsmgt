@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | DGSMgt</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: 100vh;
+        }
+        .sidebar {
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--glass-border);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .main-content {
+            padding: 32px;
+            overflow-y: auto;
+        }
+        .server-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 24px;
+        }
+        .server-card {
+            padding: 24px;
+            border-radius: 20px;
+            transition: transform 0.2s;
+        }
+        .server-card:hover {
+            transform: translateY(-4px);
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-running { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
+        .status-stopped { background: rgba(239, 68, 68, 0.1); color: #f87171; }
+        
+        .console-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        .console-window {
+            width: 100%;
+            max-width: 1000px;
+            height: 70vh;
+            background: #000;
+            border-radius: 12px;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .console-header {
+            padding: 12px 20px;
+            background: #111;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .console-output {
+            flex-grow: 1;
+            padding: 16px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            color: #4ade80;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--glass-border); color: white; }
+        
+        nav a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            color: #94a3b8;
+            text-decoration: none;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        nav a:hover, nav a.active {
+            background: rgba(255,255,255,0.05);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div style="font-weight: 700; font-size: 20px; margin-bottom: 20px;">DGSMgt</div>
+            <nav style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="/dashboard.html" class="active">Dashboard</a>
+                <a href="/admin.html" id="adminLink" style="display: none;">Administration</a>
+            </nav>
+            <div style="margin-top: auto;">
+                <button onclick="logout()" class="btn btn-outline" style="width: 100%;">Logout</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                <h1 style="margin: 0;">My Servers</h1>
+                <div id="userInfo" style="color: #94a3b8; font-size: 14px;"></div>
+            </div>
+
+            <div id="serverGrid" class="server-grid">
+                <!-- Servers will be loaded here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Console Modal -->
+    <div id="consoleOverlay" class="console-overlay">
+        <div class="console-window">
+            <div class="console-header">
+                <span id="consoleTitle">Server Logs</span>
+                <button onclick="closeConsole()" class="btn btn-outline">Close</button>
+            </div>
+            <div id="consoleOutput" class="console-output"></div>
+        </div>
+    </div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        // Protect page
+        if (!localStorage.getItem('token')) {
+            window.location.href = '/login.html';
+        }
+
+        let currentWs = null;
+
+        async function loadDashboard() {
+            try {
+                const servers = await API.get('/api/my-servers');
+                if (!servers) return;
+
+                const grid = document.getElementById('serverGrid');
+                grid.innerHTML = '';
+
+                servers.forEach(server => {
+                    const card = document.createElement('div');
+                    card.className = 'server-card glass';
+                    const isRunning = server.status === 'running';
+                    
+                    card.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                            <div>
+                                <h3 style="margin: 0 0 4px 0;">${server.name}</h3>
+                                <div style="color: #64748b; font-size: 12px; font-family: monospace;">${server.id}</div>
+                            </div>
+                            <span class="status-badge ${isRunning ? 'status-running' : 'status-stopped'}">${server.status}</span>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+                            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; text-align: center;">
+                                <div style="color: #64748b; font-size: 10px; text-transform: uppercase;">Image</div>
+                                <div style="font-size: 13px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis;">${server.image}</div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; text-align: center;">
+                                <div style="color: #64748b; font-size: 10px; text-transform: uppercase;">Uptime</div>
+                                <div style="font-size: 13px; margin-top: 4px;">${server.uptime || 'N/A'}</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 8px;">
+                            ${isRunning 
+                                ? `<button onclick="action('${server.id}', 'stop')" class="btn btn-danger" style="flex: 1;">Stop</button>`
+                                : `<button onclick="action('${server.id}', 'start')" class="btn btn-primary" style="flex: 1;">Start</button>`
+                            }
+                            <button onclick="openConsole('${server.id}')" class="btn btn-outline">Logs</button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+
+                // Show admin link if applicable (simple check based on JWT decode if we had a library, 
+                // but let's just try to fetch users - if it works, they are admin)
+                const users = await API.get('/api/admin/users');
+                if (users) {
+                    document.getElementById('adminLink').style.display = 'flex';
+                }
+            } catch (err) {
+                console.error('Failed to load dashboard:', err);
+            }
+        }
+
+        async function action(id, type) {
+            try {
+                await API.post(`/api/action/${id}/${type}`, {});
+                loadDashboard();
+            } catch (err) {
+                alert('Action failed: ' + err.message);
+            }
+        }
+
+        function openConsole(id) {
+            const overlay = document.getElementById('consoleOverlay');
+            const output = document.getElementById('consoleOutput');
+            overlay.style.display = 'flex';
+            output.textContent = 'Connecting to logs...\n';
+            
+            if (currentWs) currentWs.close();
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            currentWs = new WebSocket(`${protocol}//${window.location.host}/api/logs/${id}?token=${localStorage.getItem('token')}`);
+            
+            currentWs.onmessage = (event) => {
+                output.textContent += event.data;
+                output.scrollTop = output.scrollHeight;
+            };
+
+            currentWs.onerror = () => {
+                output.textContent += '\n[WebSocket Error] Connection lost.';
+            };
+        }
+
+        function closeConsole() {
+            if (currentWs) currentWs.close();
+            document.getElementById('consoleOverlay').style.display = 'none';
+        }
+
+        loadDashboard();
+        // Refresh every 10 seconds
+        setInterval(loadDashboard, 10000);
+    </script>
+</body>
+</html>

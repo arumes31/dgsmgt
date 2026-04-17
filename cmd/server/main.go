@@ -154,15 +154,8 @@ func main() {
 	// Assignment
 	adminRouter.HandleFunc("/assign", apiServer.AssignServerHandler).Methods("POST")
 
-	// Static files for SPA
-	r.PathPrefix("/assets/").Handler(http.FileServer(http.Dir("./static")))
-	r.PathPrefix("/favicon.svg").Handler(http.FileServer(http.Dir("./static")))
-	r.PathPrefix("/icons.svg").Handler(http.FileServer(http.Dir("./static")))
-
-	// Catch-all for SPA routes: serve index.html
-	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./static/index.html")
-	})
+	// Static files
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
 
 	// CORS Setup
 	c := cors.New(cors.Options{
