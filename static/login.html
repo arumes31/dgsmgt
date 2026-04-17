@@ -32,18 +32,8 @@
           animation: float-bg 20s infinite alternate;
         }
 
-        .blob-1 {
-          background: #3b82f6;
-          top: -100px;
-          left: -100px;
-        }
-
-        .blob-2 {
-          background: #8b5cf6;
-          bottom: -100px;
-          right: -100px;
-          animation-delay: -5s;
-        }
+        .blob-1 { background: #3b82f6; top: -100px; left: -100px; }
+        .blob-2 { background: #8b5cf6; bottom: -100px; right: -100px; animation-delay: -5s; }
 
         @keyframes float-bg {
           0% { transform: translate(0, 0) scale(1); }
@@ -65,10 +55,7 @@
           margin: 16px;
         }
 
-        .login-header {
-          text-align: center;
-          margin-bottom: 32px;
-        }
+        .login-header { text-align: center; margin-bottom: 32px; }
 
         .logo-box {
           width: 64px;
@@ -86,21 +73,12 @@
           font-size: 28px;
           font-weight: 700;
           margin: 0;
-          letter-spacing: -0.02em;
           background: linear-gradient(to right, #ffffff, #94a3b8);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
 
-        .login-subtitle {
-          color: #94a3b8;
-          font-size: 15px;
-          margin-top: 8px;
-        }
-
-        .form-group {
-          margin-bottom: 20px;
-        }
+        .form-group { margin-bottom: 20px; }
 
         .form-label {
           display: block;
@@ -111,17 +89,12 @@
           margin-left: 4px;
         }
 
-        .input-wrapper {
-          position: relative;
-        }
-
         .login-input {
           width: 100%;
-          box-sizing: border-box;
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 14px;
-          padding: 14px 14px 14px 16px;
+          padding: 14px 16px;
           color: white;
           font-size: 15px;
           transition: all 0.2s;
@@ -132,60 +105,6 @@
           background: rgba(255, 255, 255, 0.08);
           border-color: #3b82f6;
           box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
-        }
-
-        .error-message {
-          background: rgba(239, 68, 68, 0.1);
-          border-left: 3px solid #ef4444;
-          color: #fca5a5;
-          padding: 12px 16px;
-          border-radius: 8px;
-          font-size: 14px;
-          margin-bottom: 24px;
-          display: none;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .submit-btn {
-          width: 100%;
-          padding: 14px;
-          background: linear-gradient(to right, #2563eb, #7c3aed);
-          border: none;
-          border-radius: 14px;
-          color: white;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-        }
-
-        .submit-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-          filter: brightness(1.1);
-        }
-
-        .submit-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .login-footer {
-          margin-top: 32px;
-          padding-top: 24px;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-          text-align: center;
-        }
-
-        .footer-text {
-          color: #64748b;
-          font-size: 13px;
         }
     </style>
 </head>
@@ -202,39 +121,49 @@
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
                 <h1 class="login-title">DGSMgt Portal</h1>
-                <p class="login-subtitle">Secure access to your game services</p>
+                <p style="color: #94a3b8; font-size: 15px; margin-top: 8px;">Secure access to your game services</p>
             </div>
 
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label">Username</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="username" class="login-input" placeholder="Your username" required autocomplete="username">
-                    </div>
+                    <input type="text" id="username" class="login-input" placeholder="Your username" required autocomplete="username">
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Password</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="password" class="login-input" placeholder="••••••••" required autocomplete="current-password">
-                    </div>
+                    <input type="password" id="password" class="login-input" placeholder="••••••••" required autocomplete="current-password">
                 </div>
 
-                <div id="errorMessage" class="error-message"></div>
-
-                <button type="submit" id="submitBtn" class="submit-btn">
+                <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 14px; margin-top: 10px;">
                     <span>Sign In</span>
                 </button>
             </form>
 
-            <div class="login-footer">
-                <div class="footer-text">
-                    Encrypted Connection &bull; DGSMgt v1.0
-                </div>
+            <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); text-align: center; color: #64748b; font-size: 13px;">
+                Encrypted Connection &bull; DGSMgt v1.0
             </div>
         </div>
     </div>
 
     <script src="/js/auth.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            DGSMgt.ui.setLoading('submitBtn', true, 'Authenticating...');
+
+            try {
+                await DGSMgt.auth.login(username, password);
+                DGSMgt.ui.toast('Login successful!', 'success');
+                window.location.href = '/dashboard.html';
+            } catch (err) {
+                DGSMgt.ui.toast(err.message, 'error');
+                DGSMgt.ui.setLoading('submitBtn', false);
+            }
+        });
+    </script>
 </body>
 </html>

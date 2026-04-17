@@ -6,9 +6,13 @@
   --sidebar-bg: #0f172a;
   --accent: #3b82f6;
   --accent-hover: #2563eb;
+  --danger: #ef4444;
+  --success: #22c55e;
   --body-gradient: radial-gradient(circle at top center, #1a1a1a 0%, #0a0a0a 100%);
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
+
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -29,14 +33,61 @@ body {
   border: 1px solid var(--glass-border);
 }
 
-.animate-spin {
-  animation: spin 1s linear infinite;
+/* Toast System */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    background: #1e293b;
+    color: white;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast-success { border-left: 4px solid var(--success); }
+.toast-error { border-left: 4px solid var(--danger); }
+
+/* Spinner */
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-danger { background: var(--danger); color: white; }
+.btn-outline { background: transparent; border: 1px solid var(--glass-border); color: white; }
+.btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.05); }
 
 /* Local Fonts Fallback */
 @font-face {

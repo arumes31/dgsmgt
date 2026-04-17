@@ -1,81 +1,139 @@
-const API = {
-    login: async (username, password) => {
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Login failed');
-        }
-        return response.json();
-    },
+/**
+ * DGSMgt Core JavaScript Utility
+ */
 
-    get: async (url) => {
-        const token = localStorage.getItem('token');
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.status === 401) {
-            localStorage.removeItem('token');
-            window.location.href = '/login.html';
-            return;
-        }
-        return response.json();
-    },
+const DGSMgt = {
+    // API Utilities
+    api: {
+        token: () => localStorage.getItem('token'),
+        
+        headers: () => ({
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }),
 
-    post: async (url, data) => {
-        const token = localStorage.getItem('token');
-        const response = await fetch(url, {
+        request: async (url, options = {}) => {
+            const defaultOptions = {
+                headers: DGSMgt.api.headers()
+            };
+            
+            try {
+                const response = await fetch(url, { ...defaultOptions, ...options });
+                
+                if (response.status === 401) {
+                    DGSMgt.auth.logout();
+                    return null;
+                }
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(error.error || `Request failed with status ${response.status}`);
+                }
+
+                return response.json();
+            } catch (err) {
+                console.error(`API Error (${url}):`, err);
+                throw err;
+            }
+        },
+
+        get: (url) => DGSMgt.api.request(url),
+        post: (url, data) => DGSMgt.api.request(url, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
-            },
             body: JSON.stringify(data)
-        });
-        if (response.status === 401) {
+        }),
+        delete: (url) => DGSMgt.api.request(url, { method: 'DELETE' })
+    },
+
+    // Authentication
+    auth: {
+        login: async (username, password) => {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Login failed' }));
+                throw new Error(error.error || 'Invalid credentials');
+            }
+
+            const data = await response.json();
+            localStorage.setItem('token', data.token);
+            return data;
+        },
+
+        logout: () => {
             localStorage.removeItem('token');
             window.location.href = '/login.html';
-            return;
+        },
+
+        check: () => {
+            const token = localStorage.getItem('token');
+            const isLoginPage = window.location.pathname.includes('login.html');
+            
+            if (!token && !isLoginPage) {
+                window.location.href = '/login.html';
+            } else if (token && isLoginPage) {
+                window.location.href = '/dashboard.html';
+            }
         }
-        return response.json();
+    },
+
+    // UI Helpers
+    ui: {
+        toast: (message, type = 'info') => {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }, 100);
+        },
+
+        setLoading: (elementId, isLoading, loadingText = 'Loading...') => {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            if (isLoading) {
+                el.dataset.originalHtml = el.innerHTML;
+                el.disabled = true;
+                el.innerHTML = `<span class="spinner"></span> <span>${loadingText}</span>`;
+            } else {
+                el.disabled = false;
+                el.innerHTML = el.dataset.originalHtml || el.innerHTML;
+            }
+        },
+
+        initTooltips: () => {
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(btn => {
+                const hasText = btn.innerText.trim().length > 0;
+                const hasIconOnly = btn.querySelector('svg') && !hasText;
+                
+                if (hasIconOnly && !btn.title) {
+                    // Try to infer title from onclick or class
+                    if (btn.onclick?.toString().includes('stop')) btn.title = 'Stop Server';
+                    else if (btn.onclick?.toString().includes('start')) btn.title = 'Start Server';
+                    else if (btn.onclick?.toString().includes('logout')) btn.title = 'Logout';
+                    else if (btn.onclick?.toString().includes('openConsole')) btn.title = 'View Logs';
+                }
+                
+                if (hasText && btn.title) {
+                    btn.removeAttribute('title');
+                }
+            });
+        }
     }
 };
 
-// Login page logic
-if (document.getElementById('loginForm')) {
-    // Redirect if already logged in
-    if (localStorage.getItem('token')) {
-        window.location.href = '/dashboard.html';
-    }
-
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        const submitBtn = document.getElementById('submitBtn');
-        const errorMsg = document.getElementById('errorMessage');
-
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span>Authenticating...</span>';
-        errorMsg.style.display = 'none';
-
-        try {
-            const data = await API.login(username, password);
-            localStorage.setItem('token', data.token);
-            window.location.href = '/dashboard.html';
-        } catch (err) {
-            errorMsg.textContent = err.message;
-            errorMsg.style.display = 'flex';
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<span>Sign In</span>';
-        }
-    });
-}
-
-function logout() {
-    localStorage.removeItem('token');
-    window.location.href = '/login.html';
-}
+// Initial check
+DGSMgt.auth.check();
+document.addEventListener('DOMContentLoaded', DGSMgt.ui.initTooltips);
