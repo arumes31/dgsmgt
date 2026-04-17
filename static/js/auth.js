@@ -179,19 +179,18 @@ const DGSMgt = {
             const existing = document.getElementById(id);
             if (existing) existing.remove();
 
-            // Save currently focused element to restore later
-            const previousActiveElement = document.activeElement;
-
-            const overlay = document.createElement('div');
-            overlay.id = id;
-            overlay.className = 'modal-overlay';
-            overlay.style.display = 'flex';
+            const dialog = document.createElement('dialog');
+            dialog.id = id;
+            dialog.className = 'modal-dialog';
+            dialog.style.maxWidth = maxWidth;
             
-            overlay.innerHTML = `
-                <div class="modal" style="max-width: ${maxWidth};" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
+            dialog.innerHTML = `
+                <div class="modal-content" role="document">
                     <div class="modal-header">
                         <h3 id="${id}-title">${title}</h3>
-                        <button class="btn btn-outline btn-icon dg-modal-close" title="Close" aria-label="Close modal"><svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg></button>
+                        <button type="button" class="btn btn-outline btn-icon dg-modal-close" title="Close" aria-label="Close modal">
+                            <svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
+                        </button>
                     </div>
                     <div class="modal-body custom-scrollbar">
                         ${body}
@@ -200,55 +199,34 @@ const DGSMgt = {
                 </div>
             `;
             
-            document.body.appendChild(overlay);
-            document.body.style.overflow = 'hidden'; // Prevent background scrolling
-
-            // Focus Trap Logic
-            const focusableElements = overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-            const firstFocusable = focusableElements[0];
-            const lastFocusable = focusableElements[focusableElements.length - 1];
+            document.body.appendChild(dialog);
 
             const close = () => {
-                overlay.remove();
-                document.body.style.overflow = ''; // Restore scrolling
-                if (previousActiveElement) previousActiveElement.focus(); // Restore focus
+                dialog.close();
+                dialog.remove();
                 if (onClose) onClose();
             };
 
-            overlay.querySelector('.dg-modal-close').onclick = close;
-            overlay.onclick = (e) => { if(e.target === overlay) close(); };
-
-            const handleKey = (e) => { 
-                if(e.key === 'Escape') close(); 
-                if (e.key === 'Tab') {
-                    if (e.shiftKey) { // Shift + Tab
-                        if (document.activeElement === firstFocusable) {
-                            lastFocusable.focus();
-                            e.preventDefault();
-                        }
-                    } else { // Tab
-                        if (document.activeElement === lastFocusable) {
-                            firstFocusable.focus();
-                            e.preventDefault();
-                        }
-                    }
-                }
-            };
+            dialog.querySelector('.dg-modal-close').onclick = close;
             
-            window.addEventListener('keydown', handleKey);
-            const observer = new MutationObserver(() => {
-                if(!document.body.contains(overlay)) {
-                    window.removeEventListener('keydown', handleKey);
-                    document.body.style.overflow = '';
-                    observer.disconnect();
+            // Close on backdrop click
+            dialog.addEventListener('click', (e) => {
+                const rect = dialog.getBoundingClientRect();
+                const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                                    rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+                if (!isInDialog) {
+                    close();
                 }
             });
-            observer.observe(document.body, { childList: true });
 
-            // Set initial focus
-            if (firstFocusable) firstFocusable.focus();
+            dialog.addEventListener('cancel', (e) => {
+                e.preventDefault();
+                close();
+            });
 
-            return overlay;
+            dialog.showModal();
+
+            return dialog;
         },
 
         confirm: (message, onConfirm) => {
@@ -318,6 +296,73 @@ const DGSMgt = {
                     DGSMgt.ui.setLoading('dg-pwd-submit', false);
                 }
             };
+        },
+
+        debounce: (func, wait) => {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+    },
+
+    // WebSocket Helper with auto-reconnect
+    ws: {
+        connect: (path, onMessage, onOpen = null, onClose = null) => {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const token = DGSMgt.api.token();
+            if (!token) return null;
+
+            const url = `${protocol}//${window.location.host}${path}?token=${token}`;
+            let socket = null;
+            let reconnectAttempts = 0;
+            const maxAttempts = 5;
+            let intentionalClose = false;
+
+            const connect = () => {
+                socket = new WebSocket(url);
+
+                socket.onopen = (e) => {
+                    reconnectAttempts = 0;
+                    if (onOpen) onOpen(e);
+                };
+
+                socket.onmessage = onMessage;
+
+                socket.onclose = (e) => {
+                    if (onClose) onClose(e, intentionalClose);
+                    if (!intentionalClose && reconnectAttempts < maxAttempts) {
+                        const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                        reconnectAttempts++;
+                        console.log(`WebSocket closed. Reconnecting in ${timeout}ms...`);
+                        setTimeout(connect, timeout);
+                    }
+                };
+
+                socket.onerror = (err) => {
+                    console.error('WebSocket Error:', err);
+                    socket.close(); // Force close to trigger reconnect logic
+                };
+            };
+
+            connect();
+
+            return {
+                close: () => {
+                    intentionalClose = true;
+                    if (socket) socket.close();
+                },
+                send: (data) => {
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(data);
+                    }
+                }
+            };
         }
     }
 };
@@ -332,4 +377,13 @@ function toggleSidebar() {
         s.classList.toggle('open');
         o.classList.toggle('show');
     }
+}
+
+// Service Worker Registration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+            console.error('ServiceWorker registration failed: ', err);
+        });
+    });
 }

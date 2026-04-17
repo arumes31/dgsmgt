@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | DGSMgt</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="stylesheet" href="/css/app.css">
     <style>
         .stats-summary { display: flex; gap: 24px; margin-bottom: 32px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 20px 32px; border-radius: 20px; }
@@ -151,9 +152,13 @@
             DGSMgt.ui.initTooltips();
         }
 
-        function filterServers() {
+        const debouncedFilterServers = DGSMgt.ui.debounce(() => {
             const query = document.getElementById('serverSearch').value.toLowerCase();
             renderServers(allServers.filter(s => s.name.toLowerCase().includes(query) || s.id.toLowerCase().includes(query)));
+        }, 300);
+
+        function filterServers() {
+            debouncedFilterServers();
         }
 
         async function handleAction(id, type, btn) {
