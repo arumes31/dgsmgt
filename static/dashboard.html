@@ -189,13 +189,18 @@
             const m = DGSMgt.ui.modal({ title: `Logs: ${name}`, body, maxWidth: '900px', onClose: () => { if(currentWs) currentWs.close(); } });
             const output = m.querySelector('#consoleOutput');
             if (currentWs) currentWs.close();
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            currentWs = new WebSocket(`${protocol}//${window.location.host}/api/logs/${id}?token=${DGSMgt.api.token()}`);
-            currentWs.onmessage = (e) => { 
-                const d = document.createElement('div'); d.innerHTML = ansiToHtml(e.data);
-                output.appendChild(d); if (output.childNodes.length > 500) output.removeChild(output.firstChild);
-                output.scrollTop = output.scrollHeight; 
-            };
+            
+            currentWs = DGSMgt.ws.connect(`/api/logs/${id}`, (e) => {
+                const d = document.createElement('div'); 
+                d.innerHTML = ansiToHtml(e.data);
+                output.appendChild(d); 
+                if (output.childNodes.length > 500) output.removeChild(output.firstChild);
+                output.scrollTop = output.scrollHeight;
+            }, () => {
+                output.innerHTML += '<div style="color: #4ade80;">[Connected]</div>';
+            }, (e, intentional) => {
+                if (!intentional) output.innerHTML += '<div style="color: #facc15;">[Disconnected - Reconnecting...]</div>';
+            });
         }
 
         function openMetrics(id, name) {
@@ -215,9 +220,8 @@
             };
 
             if (metricsWs) metricsWs.close();
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            metricsWs = new WebSocket(`${protocol}//${window.location.host}/api/metrics/${id}?token=${DGSMgt.api.token()}`);
-            metricsWs.onmessage = (e) => {
+            
+            metricsWs = DGSMgt.ws.connect(`/api/metrics/${id}`, (e) => {
                 try {
                     const stats = JSON.parse(e.data);
                     const cpuD = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
@@ -234,7 +238,7 @@
                     ramData.push(Math.min(memP, 100)); ramData.shift();
                     draw();
                 } catch(err) {}
-            };
+            });
             setTimeout(draw, 100);
         }
 
