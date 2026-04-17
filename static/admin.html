@@ -6,36 +6,6 @@
     <title>Administration | DGSMgt</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/css/app.css">
-    <style>
-        .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-        @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
-        .sidebar { background: var(--sidebar-bg); border-right: 1px solid var(--glass-border); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-        .main-content { padding: 32px; overflow-y: auto; }
-        
-        .admin-section { background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; padding: 24px; margin-bottom: 32px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .section-header h2 { margin: 0; font-size: 20px; font-weight: 700; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 16px; background: rgba(0,0,0,0.2); border-radius: 12px; overflow: hidden; }
-        th { text-align: left; padding: 16px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; background: rgba(255,255,255,0.03); }
-        td { padding: 16px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: rgba(255,255,255,0.02); }
-        
-        .badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-        .badge-admin { background: rgba(250, 204, 21, 0.1); color: #facc15; }
-        .badge-user { background: rgba(148, 163, 184, 0.1); color: #cbd5e1; }
-        
-        nav a { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: #94a3b8; text-decoration: none; border-radius: 12px; transition: all 0.2s; }
-        nav a:hover, nav a.active { background: rgba(255,255,255,0.05); color: white; }
-        nav a.active { background: var(--accent); color: white; }
-
-        .btn-icon { width: 36px; height: 36px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
-        .btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
-        
-        .form-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; color: #cbd5e1; font-size: 14px; margin-bottom: 12px; }
-        .form-checkbox input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
-    </style>
 </head>
 <body>
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
@@ -63,188 +33,85 @@
         </aside>
 
         <main class="main-content">
-            <div style="margin-bottom: 32px; display: flex; align-items: center; gap: 16px;">
-                <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Open menu">
-                    <svg width="20" height="20" aria-hidden="true"><use href="/icons.svg#icon-menu"></use></svg>
-                </button>
-                <div>
-                    <h1 style="margin: 0; font-size: 24px; font-weight: 800;">System Administration</h1>
-                    <p style="color: #94a3b8; margin-top: 8px; font-size: 14px;">Manage users, servers, and access controls.</p>
+            <div class="header">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Open menu">
+                        <svg width="20" height="20" aria-hidden="true"><use href="/icons.svg#icon-menu"></use></svg>
+                    </button>
+                    <div>
+                        <h1 style="margin: 0; font-size: 24px; font-weight: 800;">System Administration</h1>
+                        <p style="color: #94a3b8; margin-top: 4px; font-size: 14px;">Manage users, servers, and access controls.</p>
+                    </div>
                 </div>
+                <input type="text" id="adminSearch" class="search-box" placeholder="Search everything..." oninput="filterTables()">
             </div>
 
             <!-- User Management -->
-            <section class="admin-section">
+            <div class="table-container">
                 <div class="section-header">
                     <h2>User Management</h2>
-                    <button class="btn btn-primary" onclick="openModal('userModal')">
+                    <button class="btn btn-primary" onclick="showNewUserModal()">
                         <svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-plus"></use></svg>
                         New User
                     </button>
                 </div>
                 <table>
                     <thead><tr><th>ID</th><th>Username</th><th>Role</th><th style="text-align: right;">Actions</th></tr></thead>
-                    <tbody id="userTableBody"><tr><td colspan="4" style="text-align: center; color: #64748b;"><span class="spinner"></span> Loading users...</td></tr></tbody>
+                    <tbody id="userTableBody"></tbody>
                 </table>
-            </section>
+            </div>
 
             <!-- Server Management -->
-            <section class="admin-section">
+            <div class="table-container">
                 <div class="section-header">
                     <h2>Server Management</h2>
-                    <button class="btn btn-primary" onclick="openModal('serverModal')">
+                    <button class="btn btn-primary" onclick="showNewServerModal()">
                         <svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-plus"></use></svg>
                         Create Server
                     </button>
                 </div>
                 <table>
                     <thead><tr><th>ID</th><th>Name</th><th>Image</th><th>Status</th><th style="text-align: right;">Actions</th></tr></thead>
-                    <tbody id="serverTableBody"><tr><td colspan="5" style="text-align: center; color: #64748b;"><span class="spinner"></span> Loading servers...</td></tr></tbody>
+                    <tbody id="serverTableBody"></tbody>
                 </table>
-            </section>
+            </div>
 
             <!-- Assignments -->
-            <section class="admin-section">
+            <div class="table-container">
                 <div class="section-header">
                     <h2>Server Assignments</h2>
-                    <button class="btn btn-primary" onclick="openAssignModal()">
+                    <button class="btn btn-primary" onclick="showAssignModal()">
                         <svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-plus"></use></svg>
                         Assign Server
                     </button>
                 </div>
-                <p style="color: #94a3b8; font-size: 14px;">Assign servers to users with specific permissions.</p>
                 <table>
                     <thead><tr><th>User</th><th>Server</th><th>Permissions</th><th style="text-align: right;">Actions</th></tr></thead>
                     <tbody id="assignTableBody"></tbody>
                 </table>
-            </section>
+            </div>
             
             <!-- Audit Logs -->
-            <section class="admin-section">
-                <h2>Audit Logs</h2>
+            <div class="table-container">
+                <div class="section-header">
+                    <h2>Audit Logs</h2>
+                </div>
                 <div style="max-height: 400px; overflow-y: auto;" class="custom-scrollbar">
                     <table>
                         <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
                         <tbody id="auditTableBody"></tbody>
                     </table>
                 </div>
-            </section>
+            </div>
         </main>
-    </div>
-
-    <!-- User Modal -->
-    <div id="userModal" class="modal-overlay" onclick="if(event.target === this) closeModal('userModal')">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Create New User</h3>
-                <button onclick="closeModal('userModal')" class="btn btn-outline btn-icon" title="Close"><svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg></button>
-            </div>
-            <form id="userForm">
-                <div class="modal-body custom-scrollbar">
-                    <div class="form-group">
-                        <label class="form-label" for="newUsername">Username</label>
-                        <input type="text" id="newUsername" class="form-input" required minlength="3" maxlength="32">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="newPassword">Password</label>
-                        <input type="password" id="newPassword" class="form-input" required minlength="8">
-                    </div>
-                    <label class="form-checkbox" for="newIsAdmin">
-                        <input type="checkbox" id="newIsAdmin">
-                        Grant Administrator Privileges
-                    </label>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" onclick="closeModal('userModal')" class="btn btn-outline">Cancel</button>
-                    <button type="submit" id="userSubmitBtn" class="btn btn-primary">Create User</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Server Modal -->
-    <div id="serverModal" class="modal-overlay" onclick="if(event.target === this) closeModal('serverModal')">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Deploy New Server</h3>
-                <button onclick="closeModal('serverModal')" class="btn btn-outline btn-icon" title="Close"><svg width="16" height="16"><use href="/icons.svg#icon-close"></use></svg></button>
-            </div>
-            <form id="serverForm">
-                <div class="modal-body custom-scrollbar">
-                    <div class="form-group">
-                        <label class="form-label">Container Name</label>
-                        <input type="text" id="srvName" class="form-input" required placeholder="e.g., my-minecraft-server">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Docker Image</label>
-                        <input type="text" id="srvImage" class="form-input" required placeholder="e.g., itzg/minecraft-server:latest">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Ports (Comma separated)</label>
-                        <input type="text" id="srvPorts" class="form-input" placeholder="e.g., 25565:25565/tcp, 25565:25565/udp">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Environment Variables (Comma separated KEY=VAL)</label>
-                        <input type="text" id="srvEnv" class="form-input" placeholder="e.g., EULA=TRUE, TYPE=PAPER">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Volumes (Comma separated host:container)</label>
-                        <input type="text" id="srvVolumes" class="form-input" placeholder="e.g., ./mc-data:/data">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Cron Schedule (Optional)</label>
-                        <input type="text" id="srvCron" class="form-input" placeholder="e.g., 0 4 * * *">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" onclick="closeModal('serverModal')" class="btn btn-outline">Cancel</button>
-                    <button type="submit" id="serverSubmitBtn" class="btn btn-primary">Deploy Container</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Assign Modal -->
-    <div id="assignModal" class="modal-overlay" onclick="if(event.target === this) closeModal('assignModal')">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Assign Server Access</h3>
-                <button onclick="closeModal('assignModal')" class="btn btn-outline btn-icon" title="Close"><svg width="16" height="16"><use href="/icons.svg#icon-close"></use></svg></button>
-            </div>
-            <form id="assignForm">
-                <div class="modal-body custom-scrollbar">
-                    <div class="form-group">
-                        <label class="form-label">Select User</label>
-                        <select id="assignUserId" class="form-input" required></select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Select Server</label>
-                        <select id="assignServerId" class="form-input" required></select>
-                    </div>
-                    
-                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
-                        <label class="form-label">Permissions</label>
-                        <label class="form-checkbox"><input type="checkbox" id="permStart" checked> Can Start Server</label>
-                        <label class="form-checkbox"><input type="checkbox" id="permStop" checked> Can Stop Server</label>
-                        <label class="form-checkbox"><input type="checkbox" id="permRestart" checked> Can Restart Server</label>
-                        <label class="form-checkbox"><input type="checkbox" id="permLogs" checked> Can View Logs</label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" onclick="closeModal('assignModal')" class="btn btn-outline">Cancel</button>
-                    <button type="submit" id="assignSubmitBtn" class="btn btn-primary">Save Assignment</button>
-                </div>
-            </form>
-        </div>
     </div>
 
     <script src="/js/auth.js"></script>
     <script>
         let allUsers = [];
         let allServers = [];
-
-        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        let allAssignments = [];
+        let allLogs = [];
 
         async function loadData() {
             try {
@@ -255,14 +122,24 @@
                     DGSMgt.api.get('/api/admin/audit-logs')
                 ]);
 
-                if (!users) return; // Auth failed, redirect handled by helper
-
-                allUsers = users;
+                allUsers = users || [];
                 allServers = servers || [];
+                allAssignments = assignments || [];
+                allLogs = logs || [];
 
-                // Render Users
-                const userBody = document.getElementById('userTableBody');
-                userBody.innerHTML = users.map(u => `
+                filterTables();
+            } catch (err) {
+                DGSMgt.ui.toast('Failed to load admin data', 'error');
+            }
+        }
+
+        function filterTables() {
+            const query = document.getElementById('adminSearch').value.toLowerCase();
+            
+            // Users
+            document.getElementById('userTableBody').innerHTML = allUsers
+                .filter(u => (u.Username || u.username).toLowerCase().includes(query))
+                .map(u => `
                     <tr>
                         <td>${u.ID}</td>
                         <td style="font-weight: 500;">${u.Username || u.username}</td>
@@ -273,168 +150,152 @@
                     </tr>
                 `).join('');
 
-                // Render Servers
-                const serverBody = document.getElementById('serverTableBody');
-                if (allServers.length === 0) {
-                    serverBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #64748b;">No servers found. Deploy one!</td></tr>';
-                } else {
-                    serverBody.innerHTML = allServers.map(s => `
-                        <tr>
-                            <td style="font-family: monospace; color: #94a3b8">${s.ID || s.id}</td>
-                            <td style="font-weight: 600;">${s.Name || s.name}</td>
-                            <td style="font-family: monospace; font-size: 12px; color: #94a3b8">${s.Image || s.image}</td>
-                            <td><span style="color: ${(s.Status || s.status) === 'running' ? '#4ade80' : '#f87171'}">${s.Status || s.status || 'managed'}</span></td>
-                            <td style="text-align: right;">
-                                <button class="btn btn-danger btn-sm" onclick="deleteServer(${s.ID || s.id})" title="Delete Server and Container">Delete</button>
-                            </td>
-                        </tr>
-                    `).join('');
-                }
+            // Servers
+            document.getElementById('serverTableBody').innerHTML = allServers
+                .filter(s => (s.Name || s.name).toLowerCase().includes(query) || (s.Image || s.image).toLowerCase().includes(query))
+                .map(s => `
+                    <tr>
+                        <td style="font-family: monospace; color: #94a3b8">${s.ID || s.id}</td>
+                        <td style="font-weight: 600;">${s.Name || s.name}</td>
+                        <td style="font-family: monospace; font-size: 12px; color: #94a3b8">${s.Image || s.image}</td>
+                        <td><span style="color: ${(s.Status || s.status) === 'running' ? '#4ade80' : '#f87171'}">${s.Status || s.status || 'managed'}</span></td>
+                        <td style="text-align: right;">
+                            <button class="btn btn-danger btn-sm" onclick="deleteServer(${s.ID || s.id})" title="Delete Server and Container">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
 
-                // Render Assignments
-                const assignBody = document.getElementById('assignTableBody');
-                if (assignments.length === 0) {
-                    assignBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #64748b;">No server assignments found.</td></tr>';
-                } else {
-                    assignBody.innerHTML = assignments.map(a => {
-                        const uid = a.UserID || a.user_id;
-                        const sid = a.ServerID || a.server_id;
-                        const u = users.find(user => user.ID === uid);
-                        const s = servers.find(server => server.ID === sid);
-                        return `
-                            <tr>
-                                <td>${u ? (u.Username || u.username) : uid}</td>
-                                <td>${s ? (s.Name || s.name) : sid}</td>
-                                <td style="font-size: 11px; color: #94a3b8">
-                                    <span style="color: ${a.CanStart || a.can_start ? '#4ade80' : '#f87171'}">Start</span> &bull; 
-                                    <span style="color: ${a.CanStop || a.can_stop ? '#4ade80' : '#f87171'}">Stop</span> &bull; 
-                                    <span style="color: ${a.CanRestart || a.can_restart ? '#4ade80' : '#f87171'}">Restart</span> &bull; 
-                                    <span style="color: ${a.CanViewLogs || a.can_view_logs ? '#4ade80' : '#f87171'}">Logs</span>
-                                </td>
-                                <td style="text-align: right;"><button class="btn btn-danger btn-sm" onclick="deleteAssign(${uid}, ${sid})">Remove</button></td>
-                            </tr>
-                        `;
-                    }).join('');
-                }
+            // Assignments
+            document.getElementById('assignTableBody').innerHTML = allAssignments.map(a => {
+                const uid = a.UserID || a.user_id;
+                const sid = a.ServerID || a.server_id;
+                const u = allUsers.find(user => user.ID === uid);
+                const s = allServers.find(server => server.ID === sid);
+                const uName = u ? (u.Username || u.username) : uid;
+                const sName = s ? (s.Name || s.name) : sid;
+                
+                if (query && !uName.toLowerCase().includes(query) && !sName.toLowerCase().includes(query)) return '';
 
-                // Render Logs
-                const auditBody = document.getElementById('auditTableBody');
-                if (logs.length === 0) {
-                    auditBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #64748b;">No audit logs available.</td></tr>';
-                } else {
-                    auditBody.innerHTML = logs.map(l => `
-                        <tr>
-                            <td style="font-size: 11px; color: #64748b">${new Date(l.CreatedAt).toLocaleString()}</td>
-                            <td style="font-weight: 500;">${l.username}</td>
-                            <td><span style="color: #60a5fa; font-weight: 600;">${l.action}</span></td>
-                            <td style="font-size: 12px; color: #94a3b8">${l.details}</td>
-                        </tr>
-                    `).join('');
-                }
+                return `
+                    <tr>
+                        <td>${uName}</td>
+                        <td>${sName}</td>
+                        <td style="font-size: 11px; color: #94a3b8">
+                            <span style="color: ${a.CanStart || a.can_start ? '#4ade80' : '#f87171'}">Start</span> &bull; 
+                            <span style="color: ${a.CanStop || a.can_stop ? '#4ade80' : '#f87171'}">Stop</span> &bull; 
+                            <span style="color: ${a.CanRestart || a.can_restart ? '#4ade80' : '#f87171'}">Restart</span> &bull; 
+                            <span style="color: ${a.CanViewLogs || a.can_view_logs ? '#4ade80' : '#f87171'}">Logs</span>
+                        </td>
+                        <td style="text-align: right;"><button class="btn btn-danger btn-sm" onclick="deleteAssign(${uid}, ${sid})">Remove</button></td>
+                    </tr>
+                `;
+            }).join('');
 
-                DGSMgt.ui.initTooltips();
-            } catch (err) {
-                DGSMgt.ui.toast('Failed to load admin data', 'error');
-            }
+            // Logs
+            document.getElementById('auditTableBody').innerHTML = allLogs
+                .filter(l => l.username.toLowerCase().includes(query) || l.action.toLowerCase().includes(query) || l.details.toLowerCase().includes(query))
+                .map(l => `
+                    <tr>
+                        <td style="font-size: 11px; color: #64748b">${new Date(l.CreatedAt).toLocaleString()}</td>
+                        <td style="font-weight: 500;">${l.username}</td>
+                        <td><span style="color: #60a5fa; font-weight: 600;">${l.action}</span></td>
+                        <td style="font-size: 12px; color: #94a3b8">${l.details}</td>
+                    </tr>
+                `).join('');
+
+            DGSMgt.ui.initTooltips();
         }
 
         async function deleteUser(id) { DGSMgt.ui.confirm('Delete user?', async () => { await DGSMgt.api.delete(`/api/admin/users/${id}`); loadData(); }); }
         async function deleteServer(id) { DGSMgt.ui.confirm('Warning: This will delete the server record AND the Docker container. Continue?', async () => { await DGSMgt.api.delete(`/api/admin/servers/${id}`); loadData(); }); }
         async function deleteAssign(uid, sid) { DGSMgt.ui.confirm('Remove assignment?', async () => { await DGSMgt.api.delete(`/api/admin/assignments/${uid}/${sid}`); loadData(); }); }
 
-        // Form Submissions
-        document.getElementById('userForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            DGSMgt.ui.setLoading('userSubmitBtn', true);
-            try {
-                await DGSMgt.api.post('/api/admin/users', {
-                    username: document.getElementById('newUsername').value,
-                    password: document.getElementById('newPassword').value,
-                    is_admin: document.getElementById('newIsAdmin').checked
-                });
-                DGSMgt.ui.toast('User created successfully', 'success');
-                closeModal('userModal');
-                e.target.reset();
-                loadData();
-            } catch (err) {
-                DGSMgt.ui.toast(err.message, 'error');
-            } finally {
-                DGSMgt.ui.setLoading('userSubmitBtn', false);
-            }
-        });
-
-        document.getElementById('serverForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            DGSMgt.ui.setLoading('serverSubmitBtn', true, 'Deploying Container...');
-            
-            const parseList = (str) => str ? str.split(',').map(s => s.trim()).filter(s => s) : [];
-            
-            try {
-                await DGSMgt.api.post('/api/admin/servers', {
-                    name: document.getElementById('srvName').value,
-                    image: document.getElementById('srvImage').value,
-                    ports: parseList(document.getElementById('srvPorts').value),
-                    env: parseList(document.getElementById('srvEnv').value),
-                    volumes: parseList(document.getElementById('srvVolumes').value),
-                    cron_schedule: document.getElementById('srvCron').value || undefined
-                });
-                DGSMgt.ui.toast('Server created and container deployed', 'success');
-                closeModal('serverModal');
-                e.target.reset();
-                loadData();
-            } catch (err) {
-                DGSMgt.ui.toast(err.message, 'error');
-            } finally {
-                DGSMgt.ui.setLoading('serverSubmitBtn', false);
-            }
-        });
-
-        function openAssignModal() {
-            const userSelect = document.getElementById('assignUserId');
-            const serverSelect = document.getElementById('assignServerId');
-            
-            userSelect.innerHTML = allUsers.map(u => `<option value="${u.ID}">${u.username}</option>`).join('');
-            serverSelect.innerHTML = allServers.map(s => `<option value="${s.ID}">${s.name}</option>`).join('');
-            
-            if (allUsers.length > 0 && allServers.length > 0) {
-                openModal('assignModal');
-            } else {
-                DGSMgt.ui.toast('You need at least one user and one server to create an assignment.', 'error');
-            }
+        function showNewUserModal() {
+            const body = `
+                <form id="newUserForm">
+                    <div class="form-group"><label class="form-label" for="nu-user">Username</label><input type="text" id="nu-user" class="form-input" required minlength="3"></div>
+                    <div class="form-group"><label class="form-label" for="nu-pass">Password</label><input type="password" id="nu-pass" class="form-input" required minlength="8"></div>
+                    <label class="form-checkbox" for="nu-admin"><input type="checkbox" id="nu-admin"> Grant Admin Privileges</label>
+                </form>
+            `;
+            const footer = `<button type="button" class="btn btn-outline dg-close">Cancel</button><button type="submit" form="newUserForm" id="nu-submit" class="btn btn-primary">Create User</button>`;
+            const m = DGSMgt.ui.modal({ title: 'Create User', body, footer });
+            m.querySelector('.dg-close').onclick = () => m.remove();
+            document.getElementById('newUserForm').onsubmit = async (e) => {
+                e.preventDefault();
+                DGSMgt.ui.setLoading('nu-submit', true);
+                try {
+                    await DGSMgt.api.post('/api/admin/users', {
+                        username: document.getElementById('nu-user').value,
+                        password: document.getElementById('nu-pass').value,
+                        is_admin: document.getElementById('nu-admin').checked
+                    });
+                    DGSMgt.ui.toast('User created', 'success'); m.remove(); loadData();
+                } catch (err) { DGSMgt.ui.toast(err.message, 'error'); DGSMgt.ui.setLoading('nu-submit', false); }
+            };
         }
 
-        document.getElementById('assignForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            DGSMgt.ui.setLoading('assignSubmitBtn', true);
-            try {
-                await DGSMgt.api.post('/api/admin/assign', {
-                    user_id: parseInt(document.getElementById('assignUserId').value),
-                    server_id: parseInt(document.getElementById('assignServerId').value),
-                    can_start: document.getElementById('permStart').checked,
-                    can_stop: document.getElementById('permStop').checked,
-                    can_restart: document.getElementById('permRestart').checked,
-                    can_view_logs: document.getElementById('permLogs').checked
-                });
-                DGSMgt.ui.toast('Server assigned successfully', 'success');
-                closeModal('assignModal');
-                e.target.reset();
-                loadData();
-            } catch (err) {
-                DGSMgt.ui.toast(err.message, 'error');
-            } finally {
-                DGSMgt.ui.setLoading('assignSubmitBtn', false);
-            }
-        });
-
-        // Mobile Menu Toggle
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('show');
+        function showNewServerModal() {
+            const body = `
+                <form id="newServerForm">
+                    <div class="form-group"><label class="form-label">Container Name</label><input type="text" id="ns-name" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Docker Image</label><input type="text" id="ns-image" class="form-input" required></div>
+                    <div class="form-group"><label class="form-label">Ports (CSV)</label><input type="text" id="ns-ports" class="form-input" placeholder="8080:80"></div>
+                </form>
+            `;
+            const footer = `<button type="button" class="btn btn-outline dg-close">Cancel</button><button type="submit" form="newServerForm" id="ns-submit" class="btn btn-primary">Deploy Server</button>`;
+            const m = DGSMgt.ui.modal({ title: 'Deploy Server', body, footer });
+            m.querySelector('.dg-close').onclick = () => m.remove();
+            document.getElementById('newServerForm').onsubmit = async (e) => {
+                e.preventDefault();
+                DGSMgt.ui.setLoading('ns-submit', true, 'Deploying...');
+                try {
+                    const ports = document.getElementById('ns-ports').value ? document.getElementById('ns-ports').value.split(',').map(s => s.trim()) : [];
+                    await DGSMgt.api.post('/api/admin/servers', {
+                        name: document.getElementById('ns-name').value,
+                        image: document.getElementById('ns-image').value,
+                        ports: ports
+                    });
+                    DGSMgt.ui.toast('Server deployed', 'success'); m.remove(); loadData();
+                } catch (err) { DGSMgt.ui.toast(err.message, 'error'); DGSMgt.ui.setLoading('ns-submit', false); }
+            };
         }
 
-        // Init
+        function showAssignModal() {
+            const uOpts = allUsers.map(u => `<option value="${u.ID}">${u.Username || u.username}</option>`).join('');
+            const sOpts = allServers.map(s => `<option value="${s.ID || s.id}">${s.Name || s.name}</option>`).join('');
+            const body = `
+                <form id="newAssignForm">
+                    <div class="form-group"><label class="form-label">User</label><select id="na-user" class="form-input">${uOpts}</select></div>
+                    <div class="form-group"><label class="form-label">Server</label><select id="na-server" class="form-input">${sOpts}</select></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <label class="form-checkbox"><input type="checkbox" id="na-start" checked> Start</label>
+                        <label class="form-checkbox"><input type="checkbox" id="na-stop" checked> Stop</label>
+                        <label class="form-checkbox"><input type="checkbox" id="na-restart" checked> Restart</label>
+                        <label class="form-checkbox"><input type="checkbox" id="na-logs" checked> Logs</label>
+                    </div>
+                </form>
+            `;
+            const footer = `<button type="button" class="btn btn-outline dg-close">Cancel</button><button type="submit" form="newAssignForm" id="na-submit" class="btn btn-primary">Assign Access</button>`;
+            const m = DGSMgt.ui.modal({ title: 'Assign Access', body, footer });
+            m.querySelector('.dg-close').onclick = () => m.remove();
+            document.getElementById('newAssignForm').onsubmit = async (e) => {
+                e.preventDefault();
+                DGSMgt.ui.setLoading('na-submit', true);
+                try {
+                    await DGSMgt.api.post('/api/admin/assign', {
+                        user_id: parseInt(document.getElementById('na-user').value),
+                        server_id: parseInt(document.getElementById('na-server').value),
+                        can_start: document.getElementById('na-start').checked,
+                        can_stop: document.getElementById('na-stop').checked,
+                        can_restart: document.getElementById('na-restart').checked,
+                        can_view_logs: document.getElementById('na-logs').checked
+                    });
+                    DGSMgt.ui.toast('Access assigned', 'success'); m.remove(); loadData();
+                } catch (err) { DGSMgt.ui.toast(err.message, 'error'); DGSMgt.ui.setLoading('na-submit', false); }
+            };
+        }
+
         loadData();
     </script>
 </body>

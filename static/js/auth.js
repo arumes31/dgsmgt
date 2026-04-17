@@ -36,6 +36,7 @@ const DGSMgt = {
                     throw new Error(error.error || `Request failed with status ${response.status}`);
                 }
 
+                if (response.status === 204) return true;
                 return response.json();
             } catch (err) {
                 console.error(`API Error (${url}):`, err);
@@ -94,24 +95,23 @@ const DGSMgt = {
 
     // UI Helpers
     ui: {
-        toasts: [],
         toast: (message, type = 'info') => {
-            const container = document.getElementById('toast-container') || (() => {
-                const c = document.createElement('div');
-                c.id = 'toast-container';
-                c.style.cssText = 'position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 12px; z-index: 9999;';
-                document.body.appendChild(c);
-                return c;
-            })();
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 12px; z-index: 9999; pointer-events: none;';
+                document.body.appendChild(container);
+            }
 
             const toast = document.createElement('div');
             toast.className = `toast toast-${type}`;
-            toast.style.margin = '0'; // Reset margin for container stacking
+            toast.style.pointerEvents = 'auto';
             toast.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
                     <span>${message}</span>
-                    <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;">
-                        <svg width="14" height="14"><use href="/icons.svg#icon-close"></use></svg>
+                    <button onclick="this.closest('.toast').remove()" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;">
+                        <svg width="14" height="14" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
                     </button>
                 </div>
             `;
@@ -127,7 +127,7 @@ const DGSMgt = {
         },
 
         setLoading: (elementId, isLoading, loadingText = 'Loading...') => {
-            const el = document.getElementById(elementId);
+            const el = typeof elementId === 'string' ? document.getElementById(elementId) : elementId;
             if (!el) return;
 
             if (isLoading) {
@@ -164,106 +164,100 @@ const DGSMgt = {
             });
         },
 
-        confirm: (message, onConfirm) => {
-            const existing = document.getElementById('dgsmgt-confirm');
+        modal: (options) => {
+            const { title, body, footer, id = 'dg-modal', maxWidth = '500px', onClose } = options;
+            const existing = document.getElementById(id);
             if (existing) existing.remove();
 
             const overlay = document.createElement('div');
-            overlay.id = 'dgsmgt-confirm';
+            overlay.id = id;
             overlay.className = 'modal-overlay';
             overlay.style.display = 'flex';
-            overlay.style.zIndex = '10000';
             
             overlay.innerHTML = `
-                <div class="modal" role="dialog" aria-modal="true">
-                    <div style="padding: 32px; text-align: center;">
-                        <div style="width: 56px; height: 56px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                        </div>
-                        <h3 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700;">Confirm Action</h3>
-                        <p style="color: #94a3b8; font-size: 15px; line-height: 1.5; margin: 0 0 24px 0;">${message}</p>
-                        <div style="display: flex; gap: 12px; justify-content: center;">
-                            <button id="dg-confirm-cancel" class="btn btn-outline" style="min-width: 100px;">Cancel</button>
-                            <button id="dg-confirm-yes" class="btn btn-danger" style="min-width: 100px;">Confirm</button>
-                        </div>
+                <div class="modal" style="max-width: ${maxWidth};" role="dialog" aria-modal="true">
+                    <div class="modal-header">
+                        <h3>${title}</h3>
+                        <button class="btn btn-outline btn-icon dg-modal-close" title="Close"><svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg></button>
                     </div>
+                    <div class="modal-body custom-scrollbar">
+                        ${body}
+                    </div>
+                    ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
                 </div>
             `;
             
             document.body.appendChild(overlay);
-            
-            const cancelBtn = document.getElementById('dg-confirm-cancel');
-            const confirmBtn = document.getElementById('dg-confirm-yes');
-            
-            confirmBtn.focus();
 
-            const close = () => overlay.remove();
-            cancelBtn.onclick = close;
+            const close = () => {
+                overlay.remove();
+                if (onClose) onClose();
+            };
+
+            overlay.querySelector('.dg-modal-close').onclick = close;
             overlay.onclick = (e) => { if(e.target === overlay) close(); };
-            
-            confirmBtn.onclick = () => {
-                close();
-                onConfirm();
-            };
 
-            // Keyboard support
-            const handleKey = (e) => {
-                if (e.key === 'Escape') close();
-                if (e.key === 'Tab') {
-                    if (e.shiftKey && document.activeElement === cancelBtn) { e.preventDefault(); confirmBtn.focus(); }
-                    else if (!e.shiftKey && document.activeElement === confirmBtn) { e.preventDefault(); cancelBtn.focus(); }
-                }
-            };
+            // Escape key
+            const handleKey = (e) => { if(e.key === 'Escape') close(); };
             window.addEventListener('keydown', handleKey);
-            // Cleanup event listener when removed
-            const observer = new MutationObserver((mutations) => {
-                if (!document.body.contains(overlay)) {
+            const observer = new MutationObserver(() => {
+                if(!document.body.contains(overlay)) {
                     window.removeEventListener('keydown', handleKey);
                     observer.disconnect();
                 }
             });
             observer.observe(document.body, { childList: true });
+
+            return overlay;
+        },
+
+        confirm: (message, onConfirm) => {
+            const body = `
+                <div style="text-align: center; padding: 10px 0;">
+                    <div style="width: 56px; height: 56px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 15px; line-height: 1.5; margin: 0;">${message}</p>
+                </div>
+            `;
+            const footer = `
+                <button class="btn btn-outline dg-confirm-cancel" style="min-width: 100px;">Cancel</button>
+                <button class="btn btn-danger dg-confirm-yes" style="min-width: 100px;">Confirm</button>
+            `;
+            
+            const modal = DGSMgt.ui.modal({ title: 'Confirm Action', body, footer, id: 'dg-confirm', maxWidth: '400px' });
+            
+            modal.querySelector('.dg-confirm-cancel').onclick = () => modal.remove();
+            modal.querySelector('.dg-confirm-yes').onclick = () => {
+                modal.remove();
+                onConfirm();
+            };
+            modal.querySelector('.dg-confirm-yes').focus();
         },
 
         showChangePassword: () => {
-            const existing = document.getElementById('dgsmgt-pwd-modal');
-            if (existing) existing.remove();
-
-            const overlay = document.createElement('div');
-            overlay.id = 'dgsmgt-pwd-modal';
-            overlay.className = 'modal-overlay';
-            overlay.style.display = 'flex';
-            overlay.style.zIndex = '9998';
-
-            overlay.innerHTML = `
-                <div class="modal" role="dialog" aria-modal="true">
-                    <div class="modal-header">
-                        <h3>Change Password</h3>
-                        <button onclick="document.getElementById('dgsmgt-pwd-modal').remove()" class="btn btn-outline btn-icon" title="Close"><svg width="18" height="18"><use href="/icons.svg#icon-close"></use></svg></button>
+            const body = `
+                <form id="dg-pwd-form">
+                    <div class="form-group">
+                        <label class="form-label" for="dg-new-pwd">New Password</label>
+                        <input type="password" id="dg-new-pwd" class="form-input" required minlength="8" placeholder="At least 8 characters">
                     </div>
-                    <form id="dgsmgt-pwd-form">
-                        <div class="modal-body custom-scrollbar">
-                            <div class="form-group">
-                                <label class="form-label" for="dg-new-pwd">New Password</label>
-                                <input type="password" id="dg-new-pwd" class="form-input" required minlength="8" placeholder="At least 8 characters">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="dg-conf-pwd">Confirm New Password</label>
-                                <input type="password" id="dg-conf-pwd" class="form-input" required minlength="8">
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" onclick="document.getElementById('dgsmgt-pwd-modal').remove()" class="btn btn-outline">Cancel</button>
-                            <button type="submit" id="dgsmgt-pwd-submit" class="btn btn-primary">Update Password</button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label" for="dg-conf-pwd">Confirm New Password</label>
+                        <input type="password" id="dg-conf-pwd" class="form-input" required minlength="8">
+                    </div>
+                </form>
             `;
+            const footer = `
+                <button type="button" class="btn btn-outline dg-pwd-cancel">Cancel</button>
+                <button type="submit" form="dg-pwd-form" id="dg-pwd-submit" class="btn btn-primary">Update Password</button>
+            `;
+            
+            const modal = DGSMgt.ui.modal({ title: 'Change Password', body, footer, id: 'dg-pwd-modal' });
+            modal.querySelector('.dg-pwd-cancel').onclick = () => modal.remove();
+            modal.querySelector('#dg-new-pwd').focus();
 
-            document.body.appendChild(overlay);
-            document.getElementById('dg-new-pwd').focus();
-
-            document.getElementById('dgsmgt-pwd-form').onsubmit = async (e) => {
+            document.getElementById('dg-pwd-form').onsubmit = async (e) => {
                 e.preventDefault();
                 const pwd = document.getElementById('dg-new-pwd').value;
                 const conf = document.getElementById('dg-conf-pwd').value;
@@ -273,15 +267,15 @@ const DGSMgt = {
                     return;
                 }
 
-                DGSMgt.ui.setLoading('dgsmgt-pwd-submit', true);
+                DGSMgt.ui.setLoading('dg-pwd-submit', true);
                 try {
                     await DGSMgt.api.post('/api/me/password', { password: pwd });
                     DGSMgt.ui.toast('Password updated successfully', 'success');
-                    overlay.remove();
+                    modal.remove();
                 } catch (err) {
                     DGSMgt.ui.toast(err.message, 'error');
                 } finally {
-                    DGSMgt.ui.setLoading('dgsmgt-pwd-submit', false);
+                    DGSMgt.ui.setLoading('dg-pwd-submit', false);
                 }
             };
         }
@@ -291,3 +285,11 @@ const DGSMgt = {
 // Initial check
 DGSMgt.auth.check();
 document.addEventListener('DOMContentLoaded', DGSMgt.ui.initTooltips);
+function toggleSidebar() {
+    const s = document.getElementById('sidebar');
+    const o = document.getElementById('sidebarOverlay');
+    if(s && o) {
+        s.classList.toggle('open');
+        o.classList.toggle('show');
+    }
+}
