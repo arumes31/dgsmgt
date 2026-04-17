@@ -24,7 +24,12 @@ const DGSMgt = {
             };
             
             try {
-                const response = await fetch(url, { ...defaultOptions, ...options });
+                let response;
+                try {
+                    response = await fetch(url, { ...defaultOptions, ...options });
+                } catch (networkErr) {
+                    throw new Error('Network error: Unable to connect to the server');
+                }
                 
                 if (response.status === 401) {
                     DGSMgt.auth.logout();
@@ -59,11 +64,16 @@ const DGSMgt = {
     // Authentication
     auth: {
         login: async (username, password) => {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
+            let response;
+            try {
+                response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+            } catch (networkErr) {
+                throw new Error('Network error: Unable to connect to the server');
+            }
 
             if (!response.ok) {
                 const error = await response.json().catch(() => ({ error: 'Login failed' }));
@@ -169,16 +179,19 @@ const DGSMgt = {
             const existing = document.getElementById(id);
             if (existing) existing.remove();
 
+            // Save currently focused element to restore later
+            const previousActiveElement = document.activeElement;
+
             const overlay = document.createElement('div');
             overlay.id = id;
             overlay.className = 'modal-overlay';
             overlay.style.display = 'flex';
             
             overlay.innerHTML = `
-                <div class="modal" style="max-width: ${maxWidth};" role="dialog" aria-modal="true">
+                <div class="modal" style="max-width: ${maxWidth};" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
                     <div class="modal-header">
-                        <h3>${title}</h3>
-                        <button class="btn btn-outline btn-icon dg-modal-close" title="Close"><svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg></button>
+                        <h3 id="${id}-title">${title}</h3>
+                        <button class="btn btn-outline btn-icon dg-modal-close" title="Close" aria-label="Close modal"><svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg></button>
                     </div>
                     <div class="modal-body custom-scrollbar">
                         ${body}
@@ -188,25 +201,52 @@ const DGSMgt = {
             `;
             
             document.body.appendChild(overlay);
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+
+            // Focus Trap Logic
+            const focusableElements = overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            const firstFocusable = focusableElements[0];
+            const lastFocusable = focusableElements[focusableElements.length - 1];
 
             const close = () => {
                 overlay.remove();
+                document.body.style.overflow = ''; // Restore scrolling
+                if (previousActiveElement) previousActiveElement.focus(); // Restore focus
                 if (onClose) onClose();
             };
 
             overlay.querySelector('.dg-modal-close').onclick = close;
             overlay.onclick = (e) => { if(e.target === overlay) close(); };
 
-            // Escape key
-            const handleKey = (e) => { if(e.key === 'Escape') close(); };
+            const handleKey = (e) => { 
+                if(e.key === 'Escape') close(); 
+                if (e.key === 'Tab') {
+                    if (e.shiftKey) { // Shift + Tab
+                        if (document.activeElement === firstFocusable) {
+                            lastFocusable.focus();
+                            e.preventDefault();
+                        }
+                    } else { // Tab
+                        if (document.activeElement === lastFocusable) {
+                            firstFocusable.focus();
+                            e.preventDefault();
+                        }
+                    }
+                }
+            };
+            
             window.addEventListener('keydown', handleKey);
             const observer = new MutationObserver(() => {
                 if(!document.body.contains(overlay)) {
                     window.removeEventListener('keydown', handleKey);
+                    document.body.style.overflow = '';
                     observer.disconnect();
                 }
             });
             observer.observe(document.body, { childList: true });
+
+            // Set initial focus
+            if (firstFocusable) firstFocusable.focus();
 
             return overlay;
         },
