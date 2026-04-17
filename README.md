@@ -77,7 +77,7 @@ You can run the latest pre-built image from the GitHub Container Registry:
    version: '3.8'
    services:
      dgsmgt:
-       image: ghcr.io/your-username/dgsmgt:latest
+       image: ghcr.io/arumes31/dgsmgt:latest
        container_name: dgsmgt
        restart: always
        ports:
