@@ -120,13 +120,16 @@ const DGSMgt = {
                 
                 if (hasIconOnly && !btn.title) {
                     // Try to infer title from onclick or class
-                    if (btn.onclick?.toString().includes('stop')) btn.title = 'Stop Server';
-                    else if (btn.onclick?.toString().includes('start')) btn.title = 'Start Server';
-                    else if (btn.onclick?.toString().includes('logout')) btn.title = 'Logout';
-                    else if (btn.onclick?.toString().includes('openConsole')) btn.title = 'View Logs';
+                    const onclickStr = btn.onclick?.toString() || '';
+                    if (onclickStr.includes('stop')) btn.title = 'Stop Server';
+                    else if (onclickStr.includes('start')) btn.title = 'Start Server';
+                    else if (onclickStr.includes('logout')) btn.title = 'Logout';
+                    else if (onclickStr.includes('openConsole')) btn.title = 'View Logs';
+                    else if (onclickStr.includes('closeModal') || onclickStr.includes('closeConsole')) btn.title = 'Close';
+                    else btn.title = 'Action';
                 }
                 
-                if (hasText && btn.title) {
+                if (hasText && btn.hasAttribute('title')) {
                     btn.removeAttribute('title');
                 }
             });
