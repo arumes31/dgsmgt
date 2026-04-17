@@ -217,9 +217,9 @@
             } catch (err) { console.error(err); }
         }
 
-        async function deleteUser(id) { if(confirm('Delete user?')) { await DGSMgt.api.delete(`/api/admin/users/${id}`); loadData(); } }
-        async function deleteServer(id) { if(confirm('Delete server?')) { await DGSMgt.api.delete(`/api/admin/servers/${id}`); loadData(); } }
-        async function deleteAssign(uid, sid) { if(confirm('Remove assignment?')) { await DGSMgt.api.delete(`/api/admin/assignments/${uid}/${sid}`); loadData(); } }
+        async function deleteUser(id) { DGSMgt.ui.confirm('Delete user?', async () => { await DGSMgt.api.delete(`/api/admin/users/${id}`); loadData(); }); }
+        async function deleteServer(id) { DGSMgt.ui.confirm('Warning: This will delete the server record AND the Docker container. Continue?', async () => { await DGSMgt.api.delete(`/api/admin/servers/${id}`); loadData(); }); }
+        async function deleteAssign(uid, sid) { DGSMgt.ui.confirm('Remove assignment?', async () => { await DGSMgt.api.delete(`/api/admin/assignments/${uid}/${sid}`); loadData(); }); }
 
         document.getElementById('userForm').onsubmit = async (e) => {
             e.preventDefault();

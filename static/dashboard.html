@@ -131,6 +131,14 @@
         }
 
         async function handleAction(id, type, btn) {
+            if (type === 'stop' || type === 'restart') {
+                DGSMgt.ui.confirm(`Are you sure you want to ${type} this server?`, () => executeAction(id, type, btn));
+            } else {
+                executeAction(id, type, btn);
+            }
+        }
+
+        async function executeAction(id, type, btn) {
             const old = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = '<span class="spinner" style="margin:0"></span>';
             try {

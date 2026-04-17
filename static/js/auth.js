@@ -133,6 +133,46 @@ const DGSMgt = {
                     btn.removeAttribute('title');
                 }
             });
+        },
+
+        confirm: (message, onConfirm) => {
+            // Remove existing if any
+            const existing = document.getElementById('dgsmgt-confirm');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'dgsmgt-confirm';
+            overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background: #0f172a; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 24px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);';
+            
+            const msgEl = document.createElement('div');
+            msgEl.textContent = message;
+            msgEl.style.cssText = 'color: white; font-size: 16px; font-weight: 500; margin-bottom: 24px;';
+            
+            const btnContainer = document.createElement('div');
+            btnContainer.style.cssText = 'display: flex; gap: 12px; justify-content: center;';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'btn btn-outline';
+            cancelBtn.onclick = () => overlay.remove();
+            
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.className = 'btn btn-danger';
+            confirmBtn.onclick = () => {
+                overlay.remove();
+                onConfirm();
+            };
+            
+            btnContainer.appendChild(cancelBtn);
+            btnContainer.appendChild(confirmBtn);
+            modal.appendChild(msgEl);
+            modal.appendChild(btnContainer);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
         }
     }
 };
