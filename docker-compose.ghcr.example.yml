@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  dgsmgt:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-YOUR_USERNAME}/${GITHUB_REPOSITORY_NAME:-dgsmgt}:latest
+    container_name: dgsmgt
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - db_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DATABASE_URL=/app/data/dgsmgt.db
+      - JWT_SECRET=change_me_in_production
+      - ADMIN_USER=admin
+      - ADMIN_PASSWORD=admin
+      - TRUST_PROXY=false
+    # Note: Ensure you run 'docker login ghcr.io' first if the repository is private
+
+volumes:
+  db_data:

@@ -1,0 +1,5 @@
+soulmask-control
+*.exe
+*.log
+.qodo/
+vendor/

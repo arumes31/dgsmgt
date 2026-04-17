@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  dgsmgt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dgsmgt
+    restart: always
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - db_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DATABASE_URL=/app/data/dgsmgt.db
+      - JWT_SECRET=${JWT_SECRET:-default_secret_change_me}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - TRUST_PROXY=${TRUST_PROXY:-false}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  db_data:
