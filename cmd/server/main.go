@@ -164,6 +164,12 @@ func main() {
 	// Static files
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
 
+	// 404 Handler
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		http.ServeFile(w, r, "./static/404.html")
+	})
+
 	// CORS Setup
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"}, // Adjust in production
