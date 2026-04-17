@@ -131,6 +131,7 @@ func main() {
 	apiRouter.Use(middleware.AuthMiddleware(jwtSecret))
 
 	apiRouter.HandleFunc("/me", apiServer.MeHandler).Methods("GET")
+	apiRouter.HandleFunc("/me/password", apiServer.ChangePasswordHandler).Methods("POST")
 	apiRouter.HandleFunc("/status/{id}", apiServer.StatusHandler).Methods("GET")
 	apiRouter.HandleFunc("/action/{id}/{action}", apiServer.ActionHandler).Methods("POST")
 	apiRouter.HandleFunc("/logs/{id}", apiServer.LogsHandler)

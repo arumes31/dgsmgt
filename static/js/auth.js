@@ -42,6 +42,10 @@ const DGSMgt = {
             method: 'POST',
             body: JSON.stringify(data)
         }),
+        put: (url, data) => DGSMgt.api.request(url, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        }),
         delete: (url) => DGSMgt.api.request(url, { method: 'DELETE' })
     },
 
@@ -72,8 +76,9 @@ const DGSMgt = {
         check: () => {
             const token = localStorage.getItem('token');
             const isLoginPage = window.location.pathname.includes('login.html');
+            const isIndexPage = window.location.pathname === '/' || window.location.pathname === '/index.html';
             
-            if (!token && !isLoginPage) {
+            if (!token && !isLoginPage && !isIndexPage) {
                 window.location.href = '/login.html';
             } else if (token && isLoginPage) {
                 window.location.href = '/dashboard.html';
@@ -105,7 +110,7 @@ const DGSMgt = {
             if (isLoading) {
                 el.dataset.originalHtml = el.innerHTML;
                 el.disabled = true;
-                el.innerHTML = `<span class="spinner"></span> <span>${loadingText}</span>`;
+                el.innerHTML = `<span class="spinner" style="margin-right: 8px;"></span><span>${loadingText}</span>`;
             } else {
                 el.disabled = false;
                 el.innerHTML = el.dataset.originalHtml || el.innerHTML;
@@ -119,7 +124,6 @@ const DGSMgt = {
                 const hasIconOnly = btn.querySelector('svg') && !hasText;
                 
                 if (hasIconOnly && !btn.title) {
-                    // Try to infer title from onclick or class
                     const onclickStr = btn.onclick?.toString() || '';
                     if (onclickStr.includes('stop')) btn.title = 'Stop Server';
                     else if (onclickStr.includes('start')) btn.title = 'Start Server';
@@ -136,7 +140,6 @@ const DGSMgt = {
         },
 
         confirm: (message, onConfirm) => {
-            // Remove existing if any
             const existing = document.getElementById('dgsmgt-confirm');
             if (existing) existing.remove();
 
@@ -173,6 +176,66 @@ const DGSMgt = {
             modal.appendChild(btnContainer);
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
+        },
+
+        showChangePassword: () => {
+            const existing = document.getElementById('dgsmgt-pwd-modal');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'dgsmgt-pwd-modal';
+            overlay.className = 'modal-overlay';
+            overlay.style.display = 'flex';
+            overlay.style.zIndex = '9998';
+
+            overlay.innerHTML = `
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>Change Password</h3>
+                        <button onclick="document.getElementById('dgsmgt-pwd-modal').remove()" class="btn btn-outline btn-sm">Close</button>
+                    </div>
+                    <form id="dgsmgt-pwd-form">
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label class="form-label">New Password</label>
+                                <input type="password" id="dgsmgt-new-pwd" class="form-input" required minlength="8" placeholder="At least 8 characters">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Confirm New Password</label>
+                                <input type="password" id="dgsmgt-conf-pwd" class="form-input" required minlength="8">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" onclick="document.getElementById('dgsmgt-pwd-modal').remove()" class="btn btn-outline">Cancel</button>
+                            <button type="submit" id="dgsmgt-pwd-submit" class="btn btn-primary">Update Password</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            document.getElementById('dgsmgt-pwd-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const pwd = document.getElementById('dgsmgt-new-pwd').value;
+                const conf = document.getElementById('dgsmgt-conf-pwd').value;
+
+                if (pwd !== conf) {
+                    DGSMgt.ui.toast('Passwords do not match', 'error');
+                    return;
+                }
+
+                DGSMgt.ui.setLoading('dgsmgt-pwd-submit', true);
+                try {
+                    await DGSMgt.api.post('/api/me/password', { password: pwd });
+                    DGSMgt.ui.toast('Password updated successfully', 'success');
+                    overlay.remove();
+                } catch (err) {
+                    DGSMgt.ui.toast(err.message, 'error');
+                } finally {
+                    DGSMgt.ui.setLoading('dgsmgt-pwd-submit', false);
+                }
+            };
         }
     }
 };

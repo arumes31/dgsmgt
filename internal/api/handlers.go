@@ -86,6 +86,37 @@ func (a *API) MeHandler(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, claims)
 }
 
+func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	
+	var input struct {
+		Password string `json:"password" validate:"required,min=8"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.BadRequest(w, "Invalid request body")
+		return
+	}
+
+	if err := a.validate.Struct(input); err != nil {
+		utils.BadRequest(w, "Validation failed: "+err.Error())
+		return
+	}
+
+	hashedPass, err := auth.HashPassword(input.Password)
+	if err != nil {
+		utils.InternalError(w, "Error hashing password")
+		return
+	}
+
+	if err := a.db.Model(&models.User{}).Where("id = ?", claims.UserID).Update("password_hash", hashedPass).Error; err != nil {
+		utils.InternalError(w, err.Error())
+		return
+	}
+
+	a.recordAuditLog(claims, "change_password", nil, "User changed their own password")
+	utils.Success(w, map[string]string{"status": "ok"})
+}
+
 func (a *API) recordAuditLog(claims *auth.Claims, action string, server *models.Server, details string) {
 	log := models.AuditLog{
 		UserID:     claims.UserID,
