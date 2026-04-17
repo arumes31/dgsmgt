@@ -64,7 +64,7 @@
                 <span id="consoleTitle" style="font-weight: 600;">Console</span>
                 <button onclick="closeConsole()" class="btn btn-outline btn-sm">Close</button>
             </div>
-            <div id="consoleOutput" class="console-output"></div>
+            <div id="consoleOutput" class="console-output custom-scrollbar"></div>
         </div>
     </div>
 
@@ -86,7 +86,7 @@
                 }
 
                 allServers = servers || [];
-                renderServers(allServers);
+                filterServers();
             } catch (err) { DGSMgt.ui.toast('Error loading dashboard', 'error'); }
         }
 
