@@ -6,278 +6,156 @@
     <title>Dashboard | DGSMgt</title>
     <link rel="stylesheet" href="/css/app.css">
     <style>
-        .layout {
-            display: grid;
-            grid-template-columns: 260px 1fr;
-            min-height: 100vh;
-        }
-        @media (max-width: 768px) {
-            .layout { grid-template-columns: 1fr; }
-            .sidebar { display: none; }
-        }
-        .sidebar {
-            background: var(--sidebar-bg);
-            border-right: 1px solid var(--glass-border);
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+        .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+        .sidebar { background: var(--sidebar-bg); border-right: 1px solid var(--glass-border); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
         .main-content { padding: 32px; overflow-y: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
         
-        .server-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 24px;
-        }
-        .server-card {
-            padding: 24px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--glass-border);
-            transition: all 0.2s;
-        }
+        .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+        .server-card { padding: 24px; border-radius: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); transition: all 0.2s; }
         .server-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.2); }
         
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 99px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
+        .status-badge { padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
         .status-running { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
         .status-stopped { background: rgba(239, 68, 68, 0.1); color: #f87171; }
         
-        .console-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.85);
-            backdrop-filter: blur(12px);
-            z-index: 100;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-        }
-        .console-window {
-            width: 100%;
-            max-width: 1000px;
-            height: 80vh;
-            background: #000;
-            border-radius: 16px;
-            border: 1px solid #333;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        }
-        .console-header {
-            padding: 16px 24px;
-            background: #111;
-            border-bottom: 1px solid #222;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .console-output {
-            flex-grow: 1;
-            padding: 20px;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-            color: #d1d5db;
-            overflow-y: auto;
-            background: #080808;
-        }
+        .console-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); z-index: 100; display: none; align-items: center; justify-content: center; padding: 40px; }
+        .console-window { width: 100%; max-width: 1000px; height: 80vh; background: #000; border-radius: 16px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
+        .console-header { padding: 16px 24px; background: #111; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
+        .console-output { flex-grow: 1; padding: 20px; font-family: monospace; font-size: 13px; color: #d1d5db; overflow-y: auto; background: #080808; }
         
-        nav a {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            color: #94a3b8;
-            text-decoration: none;
-            border-radius: 12px;
-            transition: all 0.2s;
-        }
+        nav a { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: #94a3b8; text-decoration: none; border-radius: 12px; }
         nav a:hover, nav a.active { background: rgba(255,255,255,0.05); color: white; }
         nav a.active { background: var(--accent); color: white; }
 
-        .btn-icon { width: 40px; height: 40px; padding: 0; border-radius: 10px; }
+        .search-box { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 8px 16px; color: white; width: 300px; }
     </style>
 </head>
 <body>
     <div class="layout">
         <aside class="sidebar">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
-                <div style="width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <span style="font-weight: 800; font-size: 18px; letter-spacing: -0.02em;">DGSMgt</span>
-            </div>
+            <div style="font-weight: 800; font-size: 20px; margin-bottom: 24px; color: var(--accent);">DGSMgt</div>
             <nav style="display: flex; flex-direction: column; gap: 4px;">
-                <a href="/dashboard.html" class="active">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                    Dashboard
-                </a>
-                <a href="/admin.html" id="adminLink" style="display: none;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                    Administration
-                </a>
+                <a href="/dashboard.html" class="active">Dashboard</a>
+                <a href="/admin.html" id="adminLink" style="display: none;">Administration</a>
             </nav>
             <div style="margin-top: auto;">
+                <div id="userDisplay" style="font-size: 13px; color: #64748b; margin-bottom: 12px; padding: 0 12px;"></div>
                 <button onclick="DGSMgt.auth.logout()" class="btn btn-outline" style="width: 100%;">Logout</button>
             </div>
         </aside>
 
         <main class="main-content">
             <div class="header">
-                <h1 style="margin: 0; font-size: 24px; font-weight: 800;">My Servers</h1>
-                <div id="userInfo" style="color: #64748b; font-size: 14px; font-weight: 500;"></div>
+                <h1 style="margin: 0;">My Servers</h1>
+                <input type="text" id="serverSearch" class="search-box" placeholder="Search servers..." oninput="filterServers()">
             </div>
 
             <div id="serverGrid" class="server-grid">
-                <!-- Servers loading state -->
-                <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #64748b;">
-                    <span class="spinner"></span> Loading your servers...
-                </div>
+                <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #64748b;"><span class="spinner"></span> Loading servers...</div>
             </div>
         </main>
     </div>
 
-    <!-- Console Modal -->
     <div id="consoleOverlay" class="console-overlay" onclick="if(event.target === this) closeConsole()">
         <div class="console-window">
             <div class="console-header">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 8px; height: 8px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 8px #4ade80;"></div>
-                    <span id="consoleTitle" style="font-weight: 600; font-size: 14px;">Live Console</span>
-                </div>
-                <button onclick="closeConsole()" class="btn btn-outline btn-icon" title="Close Console">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                <span id="consoleTitle" style="font-weight: 600;">Console</span>
+                <button onclick="closeConsole()" class="btn btn-outline btn-sm">Close</button>
             </div>
-            <div id="consoleOutput" class="console-output custom-scrollbar"></div>
+            <div id="consoleOutput" class="console-output"></div>
         </div>
     </div>
 
     <script src="/js/auth.js"></script>
     <script>
+        let allServers = [];
         let currentWs = null;
 
         async function loadDashboard() {
             try {
-                const servers = await DGSMgt.api.get('/api/my-servers');
-                if (!servers) return;
+                const [me, servers] = await Promise.all([
+                    DGSMgt.api.get('/api/me'),
+                    DGSMgt.api.get('/api/my-servers')
+                ]);
 
-                const grid = document.getElementById('serverGrid');
-                
-                if (servers.length === 0) {
-                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #64748b; background: rgba(255,255,255,0.02); border-radius: 20px; border: 1px dashed #333;">No servers assigned to you.</div>';
-                    return;
+                if (me) {
+                    document.getElementById('userDisplay').textContent = `Logged in as ${me.username}`;
+                    if (me.is_admin) document.getElementById('adminLink').style.display = 'flex';
                 }
 
-                grid.innerHTML = '';
-                servers.forEach(server => {
-                    const card = document.createElement('div');
-                    card.className = 'server-card';
-                    const isRunning = server.status.toLowerCase().includes('up');
-                    
-                    card.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-                            <div>
-                                <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 700;">${server.name}</h3>
-                                <div style="color: #64748b; font-size: 12px; font-family: monospace;">${server.id.substring(0, 12)}</div>
-                            </div>
-                            <span class="status-badge ${isRunning ? 'status-running' : 'status-stopped'}">${server.status}</span>
-                        </div>
-                        
-                        <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 14px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.03);">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600;">Image</span>
-                                <span style="font-size: 11px; font-family: monospace; color: #94a3b8;">${server.image}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600;">Uptime</span>
-                                <span style="font-size: 11px; color: #94a3b8;">${server.uptime || 'Offline'}</span>
-                            </div>
-                        </div>
+                allServers = servers || [];
+                renderServers(allServers);
+            } catch (err) { DGSMgt.ui.toast('Error loading dashboard', 'error'); }
+        }
 
-                        <div style="display: flex; gap: 10px;">
-                            ${isRunning 
-                                ? `<button onclick="handleAction('${server.id}', 'stop', this)" class="btn btn-danger" style="flex: 1;">Stop</button>`
-                                : `<button onclick="handleAction('${server.id}', 'start', this)" class="btn btn-primary" style="flex: 1;">Start</button>`
-                            }
-                            <button onclick="openConsole('${server.id}', '${server.name}')" class="btn btn-outline btn-icon" title="View Logs">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                            </button>
-                        </div>
-                    `;
-                    grid.appendChild(card);
-                });
-
-                // Admin check
-                DGSMgt.api.get('/api/admin/users').then(users => {
-                    if (users) document.getElementById('adminLink').style.display = 'flex';
-                }).catch(() => {});
-
-                DGSMgt.ui.initTooltips();
-            } catch (err) {
-                DGSMgt.ui.toast('Failed to load dashboard: ' + err.message, 'error');
+        function renderServers(servers) {
+            const grid = document.getElementById('serverGrid');
+            if (servers.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:#64748b;">No servers found.</div>';
+                return;
             }
+            grid.innerHTML = servers.map(s => {
+                const isRunning = s.status.toLowerCase().includes('up');
+                return `
+                <div class="server-card">
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:16px;">
+                        <div>
+                            <h3 style="margin:0;">${s.name}</h3>
+                            <div style="font-size:11px; color:#64748b; font-family:monospace;">${s.id.substring(0,12)}</div>
+                        </div>
+                        <span class="status-badge ${isRunning ? 'status-running' : 'status-stopped'}">${s.status}</span>
+                    </div>
+                    <div style="font-size:13px; color:#94a3b8; margin-bottom:20px;">
+                        <div>Image: ${s.image}</div>
+                        <div>Uptime: ${s.uptime || 'N/A'}</div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        ${isRunning 
+                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger btn-sm" style="flex:1">Stop</button>`
+                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary btn-sm" style="flex:1">Start</button>`
+                        }
+                        <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-sm">Restart</button>
+                        <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-sm">Logs</button>
+                    </div>
+                </div>`;
+            }).join('');
+            DGSMgt.ui.initTooltips();
+        }
+
+        function filterServers() {
+            const query = document.getElementById('serverSearch').value.toLowerCase();
+            const filtered = allServers.filter(s => s.name.toLowerCase().includes(query) || s.id.toLowerCase().includes(query));
+            renderServers(filtered);
         }
 
         async function handleAction(id, type, btn) {
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner" style="margin-right: 0;"></span>';
-            
+            const old = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<span class="spinner" style="margin:0"></span>';
             try {
                 await DGSMgt.api.post(`/api/action/${id}/${type}`, {});
-                DGSMgt.ui.toast(`Server ${type}ed successfully`, 'success');
-                loadDashboard();
-            } catch (err) {
-                DGSMgt.ui.toast('Action failed: ' + err.message, 'error');
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-            }
+                DGSMgt.ui.toast(`Action ${type} successful`, 'success');
+                setTimeout(loadDashboard, 1000);
+            } catch (err) { DGSMgt.ui.toast(err.message, 'error'); btn.disabled = false; btn.innerHTML = old; }
         }
 
         function openConsole(id, name) {
             const overlay = document.getElementById('consoleOverlay');
             const output = document.getElementById('consoleOutput');
             document.getElementById('consoleTitle').textContent = `Logs: ${name}`;
-            overlay.style.display = 'flex';
-            output.textContent = 'Connecting to stream...\n';
-            
+            overlay.style.display = 'flex'; output.textContent = 'Connecting...\n';
             if (currentWs) currentWs.close();
-
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const url = `${protocol}//${window.location.host}/api/logs/${id}?token=${DGSMgt.api.token()}`;
-            
-            currentWs = new WebSocket(url);
-            currentWs.onmessage = (e) => {
-                output.textContent += e.data;
-                output.scrollTop = output.scrollHeight;
-            };
-            currentWs.onclose = () => {
-                output.textContent += '\n[Disconnected]';
-            };
-            currentWs.onerror = () => {
-                DGSMgt.ui.toast('WebSocket connection failed', 'error');
-            };
+            currentWs = new WebSocket(`${protocol}//${window.location.host}/api/logs/${id}?token=${DGSMgt.api.token()}`);
+            currentWs.onmessage = (e) => { output.textContent += e.data; output.scrollTop = output.scrollHeight; };
+            currentWs.onerror = () => { DGSMgt.ui.toast('Console connection error', 'error'); };
         }
 
-        function closeConsole() {
-            if (currentWs) currentWs.close();
-            document.getElementById('consoleOverlay').style.display = 'none';
-        }
+        function closeConsole() { if(currentWs) currentWs.close(); document.getElementById('consoleOverlay').style.display='none'; }
 
         loadDashboard();
-        setInterval(loadDashboard, 15000);
+        setInterval(loadDashboard, 30000);
     </script>
 </body>
 </html>
