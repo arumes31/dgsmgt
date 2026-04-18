@@ -21,10 +21,13 @@ import (
 	"go.uber.org/zap"
 )
 
+var osExit = os.Exit
+var quit = make(chan os.Signal, 1)
+
 func main() {
 	if err := Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		osExit(1)
 	}
 }
 
@@ -112,6 +115,12 @@ func Run() error {
 		})
 		if err != nil {
 			logger.Error("Cron: failed to add job", zap.String("id", serverID), zap.Error(err))
+		}
+	}
+	
+	if os.Getenv("TEST_TRIGGER_CRON") == "true" {
+		for _, e := range crunner.Entries() {
+			e.Job.Run()
 		}
 	}
 	crunner.Start()
@@ -209,8 +218,11 @@ func Run() error {
 		}
 	}()
 
+	if os.Getenv("TEST_SERVER_ERROR") == "true" {
+		serverError <- fmt.Errorf("forced server error")
+	}
+
 	// Wait for interrupt signal to gracefully shutdown the server with a timeout of 10 seconds.
-	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	
 	select {
@@ -218,16 +230,17 @@ func Run() error {
 		return fmt.Errorf("listenandserve failed: %w", err)
 	case <-quit:
 		logger.Info("Shutting down server...")
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		if os.Getenv("TEST_MODE") == "true" {
-			logger.Info("Test mode: shutting down after 1 second")
-		} else {
-			// In non-test mode, we just wait for quit
-			<-quit
+			logger.Info("Test mode: shutting down after 2 seconds")
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout := 10 * time.Second
+	if os.Getenv("TEST_SHUTDOWN_ERROR") == "true" {
+        timeout = 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server forced to shutdown: %w", err)

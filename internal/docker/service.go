@@ -44,7 +44,7 @@ type Service struct {
 
 const defaultTimeout = 10 * time.Second
 
-func NewService() (*Service, error) {
+var NewService = func() (*Service, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err

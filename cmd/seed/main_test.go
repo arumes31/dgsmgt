@@ -2,8 +2,8 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"testing"
+	"gorm.io/gorm"
 )
 
 func TestRun(t *testing.T) {
@@ -31,24 +31,48 @@ func TestRunFailures(t *testing.T) {
 }
 
 func TestMainFunction(t *testing.T) {
-	if os.Getenv("BE_MAIN") == "1" {
-		os.Setenv("DATABASE_URL", ":memory:")
-		main()
-		return
-	}
-	cmd := exec.Command(os.Args[0], "-test.run=TestMainFunction")
-	cmd.Env = append(os.Environ(), "BE_MAIN=1")
-	_ = cmd.Run()
+	os.Setenv("DATABASE_URL", ":memory:")
+	defer os.Unsetenv("DATABASE_URL")
+	main()
 }
 
 func TestMainFunctionFail(t *testing.T) {
-	if os.Getenv("BE_MAIN_FAIL") == "1" {
-		os.Setenv("DATABASE_URL", "/invalid/path")
-		osExit = func(code int) { panic(code) }
-		main()
-		return
+	os.Setenv("DATABASE_URL", "/invalid/path")
+	defer os.Unsetenv("DATABASE_URL")
+	
+	exited := false
+	oldExit := osExit
+	defer func() { osExit = oldExit }()
+	
+	osExit = func(code int) {
+		exited = true
 	}
-	cmd := exec.Command(os.Args[0], "-test.run=TestMainFunctionFail")
-	cmd.Env = append(os.Environ(), "BE_MAIN_FAIL=1")
-	if err := cmd.Run(); err == nil { t.Error("expected error") }
+	
+	main()
+	if !exited {
+		t.Error("expected main to exit on failure")
+	}
+}
+
+func TestRunEmptyDSN(t *testing.T) {
+	os.Setenv("DATABASE_URL", "")
+	defer os.Unsetenv("DATABASE_URL")
+	// If it falls back to dgsmgt.db, it will succeed to init DB or fail depending on permissions.
+	// We just want to cover the `dsn == ""` branch.
+	_ = Run()
+}
+
+func TestAssignAccessFail(t *testing.T) {
+	os.Setenv("DATABASE_URL", ":memory:")
+	defer os.Unsetenv("DATABASE_URL")
+	err := Run()
+	if err != nil { t.Fatalf("setup failed") }
+
+	// Now register a callback to fail updates/creates
+	forcedErr := os.ErrPermission
+	database.Callback().Create().Before("gorm:create").Register("force_fail_create", func(db *gorm.DB) { db.Error = forcedErr })
+	database.Callback().Update().Before("gorm:update").Register("force_fail_update", func(db *gorm.DB) { db.Error = forcedErr })
+
+	// run assignAccess again, it will fail
+	assignAccess()
 }

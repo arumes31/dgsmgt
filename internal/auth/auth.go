@@ -17,7 +17,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(user *models.User, secret string) (string, error) {
+var GenerateToken = func(user *models.User, secret string) (string, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
 		UserID:   user.ID,
@@ -62,7 +62,7 @@ func Authenticate(database *gorm.DB, username, password string) (*models.User, e
 	return &user, nil
 }
 
-func HashPassword(password string) (string, error) {
+var HashPassword = func(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
