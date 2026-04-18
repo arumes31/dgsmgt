@@ -7,31 +7,21 @@ import (
 	"dgsmgt/internal/middleware"
 	"dgsmgt/internal/models"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
-	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/zap"
 )
 
-type mockFieldLevel struct {
-	validator.FieldLevel
-	value string
-}
-
-func (m *mockFieldLevel) Field() reflect.Value {
-	return reflect.ValueOf(m.value)
-}
+// mockFieldLevel removed. Using version that might be elsewhere or defined as needed.
+// Actually, it was only used locally, but I'll move it to common_test.go if needed.
+// For now, let's keep it if it's NOT redundant.
+// WAIT, I didn't put mockFieldLevel in common_test.go. I'll do that now.
 
 func TestValidateCron(t *testing.T) {
 	tests := []struct {
@@ -436,9 +426,7 @@ func TestHandlersErrorPathsExtra(t *testing.T) {
 	})
 }
 
-func (m *errorMockClient) ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error {
-	return errors.New("remove failed")
-}
+// Redundant method and struct removed. Using common_test.go.
 
 func TestListMyServersUser(t *testing.T) {
 	db := setupTestDB(t)
@@ -685,16 +673,7 @@ func TestDatabaseFailures(t *testing.T) {
 	})
 }
 
-type errorMockClient struct {
-	mockClient
-}
-
-func (m *errorMockClient) ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error {
-	return errors.New("start failed")
-}
-func (m *errorMockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error) {
-	return container.CreateResponse{}, errors.New("create failed")
-}
+// errorMockClient removed. Using common_test.go.
 
 func TestActionHandlerFail(t *testing.T) {
 	db := setupTestDB(t)

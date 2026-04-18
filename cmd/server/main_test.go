@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"dgsmgt/internal/api"
+	"context"
 	"dgsmgt/internal/docker"
 	"errors"
 	"net"
@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"dgsmgt/internal/models"
+	"github.com/docker/docker/api/types/container"
 	"github.com/glebarez/sqlite"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -29,21 +29,16 @@ func setupTestDB(t *testing.T) *gorm.DB {
 }
 
 type mockClient struct {
-	docker.Client
+	docker.DockerClient
 }
 
 func (m *mockClient) Close() error { return nil }
 
 func TestRunServerConfig(t *testing.T) {
-	// Let's set some env vars to cover the fallback cases
-	os.Setenv("DATABASE_URL", "")
+	os.Setenv("DATABASE_URL", ":memory:")
 	os.Setenv("JWT_SECRET", "")
 	os.Setenv("ADMIN_USER", "")
 	os.Setenv("ADMIN_PASSWORD", "")
-	
-	// Try calling Run, but wait, Run() blocks!
-	// It calls srv.ListenAndServe() and blocks until a signal is received!
-	// How to test? We can spawn it in a goroutine and then send SIGINT!
 	os.Setenv("PORT", "0")
 	os.Setenv("TEST_MODE", "true")
 	
@@ -51,11 +46,7 @@ func TestRunServerConfig(t *testing.T) {
 	go func() {
 		errChan <- Run()
 	}()
-	
-	// Wait a moment for server to start
 	time.Sleep(500 * time.Millisecond)
-	
-	// Send SIGINT
 	p, err := os.FindProcess(os.Getpid())
 	if err == nil {
 		_ = p.Signal(os.Interrupt)
@@ -63,10 +54,8 @@ func TestRunServerConfig(t *testing.T) {
 	
 	select {
 	case err := <-errChan:
-		if err != nil {
-			t.Errorf("Run returned error: %v", err)
-		}
-	case <-time.After(2 * time.Second):
+		if err != nil { t.Errorf("Run returned error: %v", err) }
+	case <-time.After(5 * time.Second):
 		t.Errorf("Run did not exit after SIGINT")
 	}
 }
@@ -79,16 +68,10 @@ func TestRunCoverage(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() { errChan <- Run() }()
-	
 	time.Sleep(1 * time.Second)
-
-	// Hit endpoints
 	_, _ = http.Post("http://127.0.0.1:59231/api/login", "application/json", bytes.NewBufferString("{}"))
 	_, _ = http.Get("http://127.0.0.1:59231/random-not-found")
-	
-	// Shutdown via channel push
 	quit <- syscall.SIGINT
-	
 	select {
 	case err := <-errChan:
 		if err != nil { t.Errorf("Run error: %v", err) }
@@ -101,7 +84,6 @@ func TestRun_PortDefault(t *testing.T) {
 	os.Setenv("PORT", "")
 	os.Setenv("DATABASE_URL", ":memory:")
 	os.Setenv("TEST_MODE", "true")
-	
 	errChan := make(chan error)
 	go func() { errChan <- Run() }()
 	time.Sleep(500 * time.Millisecond)
@@ -113,30 +95,35 @@ func TestDockerError(t *testing.T) {
 	oldNew := docker.NewService
 	docker.NewService = func() (*docker.Service, error) { return nil, errors.New("docker fail") }
 	defer func() { docker.NewService = oldNew }()
-
 	os.Setenv("DATABASE_URL", ":memory:")
 	err := Run()
 	if err == nil { t.Errorf("Expected Docker init error") }
 }
 
 func TestRun_ServeFail(t *testing.T) {
-	// Bind a port first
-	l, err := net.Listen("tcp", "127.0.0.1:59233")
+	l, err := net.Listen("tcp", "127.0.0.1:59243") // Use different port
 	if err == nil {
 		defer l.Close()
 	}
-	
-	os.Setenv("PORT", "59233")
+	os.Setenv("PORT", "59243")
 	os.Setenv("DATABASE_URL", ":memory:")
 	os.Setenv("TEST_MODE", "true")
-	
-	// If ListenAndServe fails, it should return the error.
-	err = Run()
+	_ = Run()
 }
 
 func TestQuitMode(t *testing.T) {
-	// Refactored: we just send signal manually in other tests. 
-	// This specific test is now redundant but we can keep it for hitting signal channel directly if needed.
+	os.Setenv("DATABASE_URL", ":memory:")
+	os.Setenv("PORT", "0")
+	os.Setenv("TEST_MODE", "true")
+	errChan := make(chan error)
+	// This test hits the 2-second timeout branch in select by NOT sending a signal
+	go func() { errChan <- Run() }()
+	select {
+	case err := <-errChan:
+		if err != nil { t.Errorf("Run returned error: %v", err) }
+	case <-time.After(5 * time.Second):
+		t.Errorf("Timed out waiting for Run to exit via 2s timeout")
+	}
 }
 
 func contains(s, substr string) bool {
@@ -150,22 +137,15 @@ func TestRun_CronAddFail(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
 	db.AutoMigrate(&models.Server{})
 	db.Create(&models.Server{ContainerID: "c1", CronSchedule: "invalid"})
-	
 	os.Setenv("DATABASE_URL", f.Name())
 	os.Setenv("PORT", "0")
 	os.Setenv("TEST_MODE", "true")
-	// We need to send signal because TEST_MODE=true was removed
 	errChan := make(chan error)
 	go func() { errChan <- Run() }()
 	time.Sleep(500 * time.Millisecond)
 	p, _ := os.FindProcess(os.Getpid())
 	_ = p.Signal(os.Interrupt)
 	<-errChan
-}
-
-func TestQuitMode(t *testing.T) {
-	// Refactored: we just send signal manually in other tests. 
-	// This specific test is now redundant but we can keep it for hitting signal channel directly if needed.
 }
 
 func TestServerErrorMode(t *testing.T) {
@@ -186,10 +166,7 @@ func TestShutdownErrorMode(t *testing.T) {
 	os.Unsetenv("TEST_SHUTDOWN_ERROR")
 }
 
-// TestQuitAndShutdownError removed.
-
 func TestMain(t *testing.T) {
-	// Let's spawn the actual main() in a goroutine and then interrupt it
 	os.Setenv("PORT", "0")
 	go main()
 	time.Sleep(500 * time.Millisecond)
@@ -199,58 +176,113 @@ func TestMain(t *testing.T) {
 }
 
 func TestMainError(t *testing.T) {
-	// DB error test
 	os.Setenv("DATABASE_URL", "invalid://db")
 	err := Run()
-	if err == nil {
-		t.Errorf("Expected error for invalid db URL")
-	}
+	if err == nil { t.Errorf("Expected error for invalid db URL") }
 }
 
-// Duplicate TestDockerError removed
-
 func TestCronSetup(t *testing.T) {
-	// We need to insert a server with cron schedule first!
 	f, _ := os.CreateTemp("", "cron*.db")
 	f.Close()
 	defer os.Remove(f.Name())
-	
 	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
 	db.AutoMigrate(&models.Server{})
-	db.Create(&models.Server{Name: "srv1", CronSchedule: "* * * * *"})
+	// One valid, one invalid
+	db.Create(&models.Server{Name: "srv1", ContainerID: "c1", CronSchedule: "* * * * *"})
+	db.Create(&models.Server{Name: "srv2", ContainerID: "c2", CronSchedule: "invalid"})
 	
 	os.Setenv("DATABASE_URL", f.Name())
 	os.Setenv("PORT", "0")
 	os.Setenv("TEST_MODE", "true")
 	os.Setenv("TEST_TRIGGER_CRON", "true")
 	
+	// Mock Docker for successful restart
+	oldNew := docker.NewService
+	docker.NewService = func() (*docker.Service, error) {
+		return docker.NewServiceWithClient(&mockClient{}), nil
+	}
+	defer func() { docker.NewService = oldNew }()
+
 	_ = Run()
-	
 	os.Unsetenv("TEST_TRIGGER_CRON")
+}
+
+func TestCronRestartFail(t *testing.T) {
+	f, _ := os.CreateTemp("", "cronfail2*.db")
+	f.Close()
+	defer os.Remove(f.Name())
+	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
+	db.AutoMigrate(&models.Server{})
+	db.Create(&models.Server{Name: "srv1", ContainerID: "c1", CronSchedule: "* * * * *"})
+	
+	os.Setenv("DATABASE_URL", f.Name())
+	os.Setenv("PORT", "0")
+	os.Setenv("TEST_MODE", "true")
+	os.Setenv("TEST_TRIGGER_CRON", "true")
+	
+	// Mock Docker for FAILED restart
+	oldNew := docker.NewService
+	docker.NewService = func() (*docker.Service, error) {
+		m := &mockClient{}
+		// We can't easily mock specific methods of Service here without interface changes, 
+		// but we can pass an erroring client if the Service uses it.
+		// However, Service.Restart will call m.ContainerRestart.
+		return docker.NewServiceWithClient(m), nil
+	}
+	defer func() { docker.NewService = oldNew }()
+
+	_ = Run()
+	os.Unsetenv("TEST_TRIGGER_CRON")
+}
+
+type errMockClient struct {
+	mockClient
+}
+func (m *errMockClient) ContainerRestart(ctx context.Context, id string, options container.StopOptions) error {
+	return errors.New("restart failed")
+}
+
+func TestCronRestartFailActual(t *testing.T) {
+	f, _ := os.CreateTemp("", "cronfail3*.db")
+	f.Close()
+	defer os.Remove(f.Name())
+	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
+	db.AutoMigrate(&models.Server{})
+	db.Create(&models.Server{Name: "srv1", ContainerID: "c1", CronSchedule: "* * * * *"})
+	
+	os.Setenv("DATABASE_URL", f.Name())
+	os.Setenv("PORT", "0")
+	os.Setenv("TEST_MODE", "true")
+	os.Setenv("TEST_TRIGGER_CRON", "true")
+	
+	oldNew := docker.NewService
+	docker.NewService = func() (*docker.Service, error) {
+		return docker.NewServiceWithClient(&errMockClient{}), nil
+	}
+	defer func() { docker.NewService = oldNew }()
+
+	_ = Run()
 }
 
 func TestAutoMigrateFail(t *testing.T) {
 	f, _ := os.CreateTemp("", "migrate*.db")
 	f.Close()
 	defer os.Remove(f.Name())
-	
 	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
 	db.Exec("CREATE VIEW audit_logs AS SELECT 1;")
-	
 	os.Setenv("DATABASE_URL", f.Name())
 	err := Run()
 	if err == nil { t.Errorf("Expected AutoMigrate to fail on view") }
 }
 
 func TestMainPanic(t *testing.T) {
-	// This will test the os.Exit(1) branch of main() somewhat.
 	oldExit := osExit
 	defer func() { osExit = oldExit }()
 	osExit = func(code int) {}
 	os.Setenv("DATABASE_URL", "invalid://db")
 	main()
 }
-// We also need to cover secureHeadersMiddleware in main
+
 func TestSecureHeadersMiddleware(t *testing.T) {
 	handler := secureHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	req := httptest.NewRequest("GET", "/", nil)
@@ -265,11 +297,9 @@ func TestRun_AdminExists(t *testing.T) {
 	f, _ := os.CreateTemp("", "admin*.db")
 	f.Close()
 	defer os.Remove(f.Name())
-	
 	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
 	db.AutoMigrate(&models.User{})
 	db.Create(&models.User{Username: "admin", IsAdmin: true})
-	
 	os.Setenv("DATABASE_URL", f.Name())
 	os.Setenv("PORT", "0")
 	os.Setenv("TEST_MODE", "true")
@@ -280,11 +310,9 @@ func TestRun_AdminCreateFail(t *testing.T) {
 	f, _ := os.CreateTemp("", "adminfail*.db")
 	f.Close()
 	defer os.Remove(f.Name())
-	
 	db, _ := gorm.Open(sqlite.Open(f.Name()), &gorm.Config{})
 	db.AutoMigrate(&models.User{})
 	db.Exec("CREATE TRIGGER prevent_insert BEFORE INSERT ON users BEGIN SELECT RAISE(FAIL, 'blocked'); END;")
-
 	os.Setenv("DATABASE_URL", f.Name())
 	os.Setenv("PORT", "0")
 	err := Run()

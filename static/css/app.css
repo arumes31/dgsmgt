@@ -1,23 +1,24 @@
 :root {
-  --background: #050505;
+  --background: #020617;
   --foreground: #f8fafc;
-  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-bg: rgba(15, 23, 42, 0.4);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-hover: rgba(255, 255, 255, 0.05);
-  --sidebar-bg: #030303;
+  --glass-hover: rgba(30, 41, 59, 0.6);
+  --sidebar-bg: rgba(2, 6, 23, 0.8);
   --accent: #3b82f6;
-  --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  --accent-glow: rgba(59, 130, 246, 0.5);
-  --accent-hover: #60a5fa;
+  --accent-gradient: linear-gradient(135deg, #60a5fa 0%, #8b5cf6 100%);
+  --accent-glow: rgba(59, 130, 246, 0.3);
+  --accent-hover: #93c5fd;
   --danger: #ef4444;
   --success: #10b981;
   --warning: #f59e0b;
-  --surface: rgba(255, 255, 255, 0.015);
-  --body-gradient: radial-gradient(circle at 50% -20%, #1e1b4b 0%, #050505 85%);
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.9);
-  --glass-shine: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 50%, rgba(255,255,255,0.05) 100%);
-  --trans-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --surface: rgba(15, 23, 42, 0.2);
+  --body-gradient: radial-gradient(circle at 50% -20%, #1e1b4b 0%, #020617 80%);
+  --font-sans: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --card-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.5);
+  --glass-shine: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 50%, rgba(255,255,255,0.08) 100%);
+  --trans-smooth: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  --sidebar-width: 280px;
 }
 
 * { box-sizing: border-box; }
@@ -55,8 +56,8 @@ body {
 
 .glass-card {
   background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--glass-border);
   border-radius: 32px;
   box-shadow: var(--card-shadow);
@@ -64,11 +65,28 @@ body {
 }
 
 .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 16px 64px -10px rgba(0, 0, 0, 0.9);
-  transform: translateY(-4px) scale(1.01);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 80px -20px rgba(0, 0, 0, 0.6);
+  transform: translateY(-6px) scale(1.01);
   background: var(--glass-hover);
 }
+
+/* Page Reveal Animation */
+.reveal {
+    animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+}
+@keyframes reveal {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.reveal-stagger > * { opacity: 0; }
+.reveal-stagger > *:nth-child(1) { animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards; }
+.reveal-stagger > *:nth-child(2) { animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards; }
+.reveal-stagger > *:nth-child(3) { animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards; }
+.reveal-stagger > *:nth-child(4) { animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards; }
+.reveal-stagger > *:nth-child(5) { animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards; }
 
 /* Shimmer Effect */
 .shimmer {
@@ -79,18 +97,18 @@ body {
 .shimmer::after {
   content: '';
   position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
+  top: -150%;
+  left: -150%;
+  width: 300%;
+  height: 300%;
   background: linear-gradient(
     45deg,
     transparent 45%,
-    rgba(255, 255, 255, 0.03) 50%,
+    rgba(255, 255, 255, 0.05) 50%,
     transparent 55%
   );
   transform: rotate(45deg);
-  animation: shimmer 6s infinite linear;
+  animation: shimmer 8s infinite linear;
   pointer-events: none;
 }
 
@@ -138,7 +156,7 @@ body {
 }
 
 /* Layouts */
-.layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+.layout { display: grid; grid-template-columns: var(--sidebar-width) 1fr; min-height: 100vh; }
 @media (max-width: 1024px) { .layout { grid-template-columns: 1fr; } }
 
 .sidebar { 
@@ -154,13 +172,15 @@ body {
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; flex-wrap: wrap; gap: 20px; }
 
 .header h1 {
-    font-size: 32px;
+    font-size: 36px;
     font-weight: 800;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.04em;
     margin: 0;
     background: linear-gradient(to bottom right, #fff, #94a3b8);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
+    animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .section-header {
@@ -194,11 +214,11 @@ nav a svg { opacity: 0.5; transition: opacity 0.2s; }
 nav a:hover { background: var(--surface); color: white; }
 nav a:hover svg { opacity: 1; }
 nav a.active { 
-    background: rgba(59, 130, 246, 0.1); 
+    background: rgba(59, 130, 246, 0.15); 
     color: var(--accent); 
-    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3);
 }
-nav a.active svg { opacity: 1; color: var(--accent); }
+nav a.active svg { opacity: 1; color: var(--accent); filter: drop-shadow(0 0 8px var(--accent-glow)); }
 
 /* Tables */
 .table-container { 
@@ -300,8 +320,8 @@ tr:hover td { background: var(--glass-bg); }
 .btn-danger:hover:not(:disabled) { 
     background: #ef4444; 
     color: white;
-    box-shadow: 0 8px 20px -6px rgba(239, 68, 68, 0.5);
-    transform: translateY(-2px);
+    box-shadow: 0 12px 24px -6px rgba(239, 68, 68, 0.5);
+    transform: translateY(-4px);
 }
 
 .btn-outline { 
@@ -531,9 +551,17 @@ dialog.modal-dialog::backdrop {
 
 /* Local Fonts Fallback */
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Outfit';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: local('Inter'), system-ui;
+  src: local('Outfit'), local('Segoe UI'), system-ui;
+}
+
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: local('Outfit Bold'), local('Segoe UI Bold'), system-ui;
 }
