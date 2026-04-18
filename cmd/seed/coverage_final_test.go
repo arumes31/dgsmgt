@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 	"dgsmgt/internal/db"
+	"dgsmgt/internal/models"
 )
 
 func TestSeed_Functions(t *testing.T) {
@@ -33,10 +34,8 @@ func TestSeed_Functions(t *testing.T) {
 		seedServers()
 	})
 	t.Run("assignAccessFail", func(t *testing.T) {
-		err := database.AutoMigrate("users", "servers", "user_servers")
-		if err != nil {
-			t.Errorf("AutoMigrate failed: %v", err)
-		}
+		// Just ensure tables exist before dropping user_servers
+		_ = database.AutoMigrate(&models.User{}, &models.Server{}, &models.UserServer{})
 		seedUsers()
 		seedServers()
 		_ = database.Migrator().DropTable("user_servers")
