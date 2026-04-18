@@ -85,7 +85,7 @@
                 </div>
             </div>
 
-            <div id="serverGrid" class="server-grid reveal">
+            <div id="serverGrid" class="server-grid reveal-stagger">
                 <div style="grid-column: 1/-1; text-align: center; padding: 100px; color: #64748b;">
                     <div class="spinner" style="width: 48px; height: 48px; border-width: 3px; margin-bottom: 24px;"></div>
                     <div style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Hydrating Infrastructure...</div>
@@ -134,44 +134,51 @@
                 grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:#64748b; background:rgba(255,255,255,0.02); border-radius:20px; border:1px dashed #333;">No servers found matching your search.</div>';
                 return;
             }
-            grid.innerHTML = servers.map(s => {
+            grid.innerHTML = servers.map((s, index) => {
                 const isRunning = s.status.toLowerCase().includes('up');
+                const statusClass = isRunning ? 'status-online' : 'status-offline';
+                const statusLabel = isRunning ? 'Online' : 'Offline';
+                
                 return `
-                <div class="server-card">
+                <div class="glass-card reveal" style="padding: 24px; display: flex; flex-direction: column; gap: 20px; animation-delay: ${index * 0.1}s;">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
-                            <h3 style="margin:0; font-size:20px; font-weight:700; color:white;">${s.name}</h3>
-                            <div style="font-size:12px; color:#64748b; font-family:monospace; margin-top:4px; letter-spacing:0.05em;">${s.id.substring(0,12)}</div>
+                            <h3 style="margin:0; font-size:20px; font-weight:700; color:white; letter-spacing: -0.02em;">${s.name}</h3>
+                            <div style="font-size:12px; color:#64748b; font-family:var(--font-mono); margin-top:4px; letter-spacing:0.05em; opacity: 0.8;">${s.id.substring(0,12)}</div>
                         </div>
-                        <span class="status-badge ${isRunning ? 'status-running' : 'status-stopped'}">${isRunning ? 'Online' : 'Offline'}</span>
+                        <div class="status-pulse ${statusClass}">
+                            <div class="status-indicator"></div>
+                            ${statusLabel}
+                        </div>
                     </div>
                     
-                    <div style="background:rgba(0,0,0,0.2); border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; gap:12px;">
+                    <div style="background:rgba(0,0,0,0.2); border-radius:20px; padding:16px; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; gap:12px;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Image</span>
-                            <span style="font-family:monospace; color:#94a3b8; font-size:13px;">${s.image}</span>
+                            <span style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;">Engine</span>
+                            <span style="font-family:var(--font-mono); color:#94a3b8; font-size:12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.image}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Uptime</span>
-                            <span style="color:#94a3b8; font-size:13px;">${s.uptime || '---'}</span>
+                            <span style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;">Uptime</span>
+                            <span style="color:#94a3b8; font-size:12px;">${s.uptime || '---'}</span>
                         </div>
                     </div>
 
-                    <div style="display:flex; gap:12px;">
+                    <div style="display:flex; gap:10px; margin-top: auto;">
                         ${isRunning 
-                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger" style="flex:1">Stop</button>`
-                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary" style="flex:1">Start</button>`
+                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger" style="flex:1; border-radius: 12px; font-weight: 700;">Stop</button>`
+                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary" style="flex:1; border-radius: 12px; font-weight: 700;">Start</button>`
                         }
                         <div style="display:flex; gap:8px;">
-                            <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-icon" title="Restart"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-                            <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Logs"><svg width="18" height="18"><use href="/icons.svg#icon-logs"></use></svg></button>
-                            ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Metrics"><svg width="18" height="18"><use href="/icons.svg#icon-terminal"></use></svg></button>` : ''}
+                            <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-icon" title="Restart" style="border-radius: 12px;"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+                            <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Logs" style="border-radius: 12px;"><svg width="18" height="18"><use href="/icons.svg#icon-logs"></use></svg></button>
+                            ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Metrics" style="border-radius: 12px;"><svg width="18" height="18"><use href="/icons.svg#icon-terminal"></use></svg></button>` : ''}
                         </div>
                     </div>
                 </div>`;
             }).join('');
             DGSMgt.ui.initTooltips();
         }
+
 
         const debouncedFilterServers = DGSMgt.ui.debounce(() => {
             const query = document.getElementById('serverSearch').value.toLowerCase();

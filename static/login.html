@@ -109,32 +109,34 @@
         </div>
 
         <div class="login-card reveal">
-            <div class="login-header reveal" style="animation-delay: 0.1s;">
-                <div class="logo-box">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <h1 class="login-title">DGSMgt Portal</h1>
-                <p style="color: #64748b; font-size: 15px; margin-top: 12px; font-weight: 500;">Secure access to your game services</p>
-            </div>
-
-            <form id="loginForm">
-                <div class="form-group">
-                    <label class="form-label" for="username">Username</label>
-                    <input type="text" id="username" class="form-input" placeholder="Your username" required autocomplete="username">
+            <div class="reveal-stagger">
+                <div class="login-header">
+                    <div class="logo-box">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h1 class="login-title">DGSMgt Portal</h1>
+                    <p style="color: #64748b; font-size: 15px; margin-top: 12px; font-weight: 500;">Secure access to your game services</p>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+                <form id="loginForm" style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="form-group">
+                        <label class="form-label" for="username">Username</label>
+                        <input type="text" id="username" class="form-input" placeholder="Your username" required autocomplete="username" style="border-radius: 14px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">Password</label>
+                        <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password" style="border-radius: 14px;">
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 16px; margin-top: 8px; border-radius: 14px; font-weight: 700;">
+                        <span>Sign In</span>
+                    </button>
+                </form>
+
+                <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--glass-border); text-align: center; color: #475569; font-size: 13px; font-weight: 500;">
+                    Encrypted Connection &bull; DGSMgt v1.0
                 </div>
-
-                <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 16px; margin-top: 8px;">
-                    <span>Sign In</span>
-                </button>
-            </form>
-
-            <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--glass-border); text-align: center; color: #475569; font-size: 13px; font-weight: 500;">
-                Encrypted Connection &bull; DGSMgt v1.0
             </div>
         </div>
     </div>

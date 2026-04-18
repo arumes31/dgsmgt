@@ -55,60 +55,68 @@
             </div>
 
             <!-- User Management -->
-            <div class="table-container shimmer reveal">
-                <div class="section-header">
-                    <h2>User Management</h2>
-                    <button class="btn btn-primary" onclick="showNewUserModal()">
+            <div class="glass-card reveal" style="padding: 24px; margin-bottom: 32px;">
+                <div class="section-header" style="padding: 0 0 20px 0;">
+                    <h2 style="margin:0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;">User Management</h2>
+                    <button class="btn btn-primary" onclick="showNewUserModal()" style="border-radius: 12px;">
                         <svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-plus"></use></svg>
                         New User
                     </button>
                 </div>
-                <table>
-                    <thead><tr><th>ID</th><th>Username</th><th>Role</th><th style="text-align: right;">Actions</th></tr></thead>
-                    <tbody id="userTableBody"></tbody>
-                </table>
+                <div class="table-container" style="background: rgba(0,0,0,0.2); border-radius: 20px; border: 1px solid rgba(255,255,255,0.03); overflow: hidden;">
+                    <table>
+                        <thead><tr><th>ID</th><th>Username</th><th>Role</th><th style="text-align: right;">Actions</th></tr></thead>
+                        <tbody id="userTableBody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Server Management -->
-            <div class="table-container shimmer reveal">
-                <div class="section-header">
-                    <h2>Server Management</h2>
-                    <button class="btn btn-primary" onclick="showNewServerModal()">
+            <div class="glass-card reveal" style="padding: 24px; margin-bottom: 32px; animation-delay: 0.1s;">
+                <div class="section-header" style="padding: 0 0 20px 0;">
+                    <h2 style="margin:0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;">Server Management</h2>
+                    <button class="btn btn-primary" onclick="showNewServerModal()" style="border-radius: 12px;">
                         <svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-plus"></use></svg>
                         Create Server
                     </button>
                 </div>
-                <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Image</th><th>Status</th><th style="text-align: right;">Actions</th></tr></thead>
-                    <tbody id="serverTableBody"></tbody>
-                </table>
+                <div class="table-container" style="background: rgba(0,0,0,0.2); border-radius: 20px; border: 1px solid rgba(255,255,255,0.03); overflow: hidden;">
+                    <table>
+                        <thead><tr><th>ID</th><th>Name</th><th>Image</th><th>Status</th><th style="text-align: right;">Actions</th></tr></thead>
+                        <tbody id="serverTableBody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Assignments -->
-            <div class="table-container shimmer reveal">
-                <div class="section-header">
-                    <h2>Server Assignments</h2>
-                    <button class="btn btn-primary" onclick="showAssignModal()">
+            <div class="glass-card reveal" style="padding: 24px; margin-bottom: 32px; animation-delay: 0.2s;">
+                <div class="section-header" style="padding: 0 0 20px 0;">
+                    <h2 style="margin:0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;">Server Assignments</h2>
+                    <button class="btn btn-primary" onclick="showAssignModal()" style="border-radius: 12px;">
                         <svg width="16" height="16" aria-hidden="true"><use href="/icons.svg#icon-plus"></use></svg>
                         Assign Server
                     </button>
                 </div>
-                <table>
-                    <thead><tr><th>User</th><th>Server</th><th>Permissions</th><th style="text-align: right;">Actions</th></tr></thead>
-                    <tbody id="assignTableBody"></tbody>
-                </table>
+                <div class="table-container" style="background: rgba(0,0,0,0.2); border-radius: 20px; border: 1px solid rgba(255,255,255,0.03); overflow: hidden;">
+                    <table>
+                        <thead><tr><th>User</th><th>Server</th><th>Permissions</th><th style="text-align: right;">Actions</th></tr></thead>
+                        <tbody id="assignTableBody"></tbody>
+                    </table>
+                </div>
             </div>
             
             <!-- Audit Logs -->
-            <div class="table-container shimmer reveal">
-                <div class="section-header">
-                    <h2>Audit Logs</h2>
+            <div class="glass-card reveal" style="padding: 24px; margin-bottom: 12px; animation-delay: 0.3s;">
+                <div class="section-header" style="padding: 0 0 20px 0;">
+                    <h2 style="margin:0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;">Audit Logs</h2>
                 </div>
-                <div style="max-height: 400px; overflow-y: auto;" class="custom-scrollbar">
-                    <table>
-                        <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-                        <tbody id="auditTableBody"></tbody>
-                    </table>
+                <div class="table-container" style="background: rgba(0,0,0,0.2); border-radius: 20px; border: 1px solid rgba(255,255,255,0.03); overflow: hidden;">
+                    <div style="max-height: 400px; overflow-y: auto;" class="custom-scrollbar">
+                        <table>
+                            <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+                            <tbody id="auditTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
@@ -149,11 +157,11 @@
                 .filter(u => (u.Username || u.username).toLowerCase().includes(query))
                 .map(u => `
                     <tr>
-                        <td>${u.ID}</td>
-                        <td style="font-weight: 500;">${u.Username || u.username}</td>
+                        <td style="font-family: var(--font-mono); font-size: 13px; color: #94a3b8;">${u.ID}</td>
+                        <td style="font-weight: 600; color: white;">${u.Username || u.username}</td>
                         <td><span class="badge ${u.IsAdmin || u.is_admin ? 'badge-admin' : 'badge-user'}">${u.IsAdmin || u.is_admin ? 'Admin' : 'User'}</span></td>
                         <td style="text-align: right;">
-                            ${(u.Username || u.username) !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.ID})">Delete</button>` : '<span style="color: #64748b; font-size: 12px;">Protected</span>'}
+                            ${(u.Username || u.username) !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.ID})" style="border-radius: 8px;">Delete</button>` : '<span style="color: #64748b; font-size: 12px;">Protected</span>'}
                         </td>
                     </tr>
                 `).join('');
@@ -161,17 +169,24 @@
             // Servers
             document.getElementById('serverTableBody').innerHTML = allServers
                 .filter(s => (s.Name || s.name).toLowerCase().includes(query) || (s.Image || s.image).toLowerCase().includes(query))
-                .map(s => `
+                .map(s => {
+                    const isRunning = (s.Status || s.status) === 'running';
+                    return `
                     <tr>
-                        <td style="font-family: monospace; color: #94a3b8">${s.ID || s.id}</td>
-                        <td style="font-weight: 600;">${s.Name || s.name}</td>
-                        <td style="font-family: monospace; font-size: 12px; color: #94a3b8">${s.Image || s.image}</td>
-                        <td><span style="color: ${(s.Status || s.status) === 'running' ? '#4ade80' : '#f87171'}">${s.Status || s.status || 'managed'}</span></td>
+                        <td style="font-family: var(--font-mono); font-size: 13px; color: #94a3b8;">${s.ID || s.id}</td>
+                        <td style="font-weight: 600; color: white;">${s.Name || s.name}</td>
+                        <td style="font-family: var(--font-mono); font-size: 12px; color: #94a3b8;">${s.Image || s.image}</td>
+                        <td>
+                             <div class="status-pulse ${isRunning ? 'status-online' : 'status-offline'}">
+                                <div class="status-indicator"></div>
+                                ${isRunning ? 'Active' : 'Stopped'}
+                            </div>
+                        </td>
                         <td style="text-align: right;">
-                            <button class="btn btn-danger btn-sm" onclick="deleteServer(${s.ID || s.id})">Delete</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteServer(${s.ID || s.id})" style="border-radius: 8px;">Delete</button>
                         </td>
                     </tr>
-                `).join('');
+                `}).join('');
 
             // Assignments
             document.getElementById('assignTableBody').innerHTML = allAssignments.map(a => {
@@ -186,15 +201,15 @@
 
                 return `
                     <tr>
-                        <td>${uName}</td>
-                        <td>${sName}</td>
-                        <td style="font-size: 11px; color: #94a3b8">
-                            <span style="color: ${a.CanStart || a.can_start ? '#4ade80' : '#f87171'}">Start</span> &bull; 
-                            <span style="color: ${a.CanStop || a.can_stop ? '#4ade80' : '#f87171'}">Stop</span> &bull; 
-                            <span style="color: ${a.CanRestart || a.can_restart ? '#4ade80' : '#f87171'}">Restart</span> &bull; 
-                            <span style="color: ${a.CanViewLogs || a.can_view_logs ? '#4ade80' : '#f87171'}">Logs</span>
+                        <td style="font-weight: 600; color: white;">${uName}</td>
+                        <td style="font-weight: 600; color: white;">${sName}</td>
+                        <td style="font-size: 12px; color: #94a3b8">
+                            <span style="color: ${a.CanStart || a.can_start ? 'var(--success)' : 'var(--danger)'}">Start</span> &bull; 
+                            <span style="color: ${a.CanStop || a.can_stop ? 'var(--success)' : 'var(--danger)'}">Stop</span> &bull; 
+                            <span style="color: ${a.CanRestart || a.can_restart ? 'var(--success)' : 'var(--danger)'}">Restart</span> &bull; 
+                            <span style="color: ${a.CanViewLogs || a.can_view_logs ? 'var(--success)' : 'var(--danger)'}">Logs</span>
                         </td>
-                        <td style="text-align: right;"><button class="btn btn-danger btn-sm" onclick="deleteAssign(${uid}, ${sid})">Remove</button></td>
+                        <td style="text-align: right;"><button class="btn btn-danger btn-sm" onclick="deleteAssign(${uid}, ${sid})" style="border-radius: 8px;">Remove</button></td>
                     </tr>
                 `;
             }).join('');
@@ -204,15 +219,16 @@
                 .filter(l => l.username.toLowerCase().includes(query) || l.action.toLowerCase().includes(query) || l.details.toLowerCase().includes(query))
                 .map(l => `
                     <tr>
-                        <td style="font-size: 11px; color: #64748b">${new Date(l.CreatedAt).toLocaleString()}</td>
-                        <td style="font-weight: 500;">${l.username}</td>
-                        <td><span style="color: #60a5fa; font-weight: 600;">${l.action}</span></td>
-                        <td style="font-size: 12px; color: #94a3b8">${l.details}</td>
+                        <td style="font-size: 12px; color: #64748b; font-family: var(--font-mono);">${new Date(l.CreatedAt).toLocaleString()}</td>
+                        <td style="font-weight: 600; color: white;">${l.username}</td>
+                        <td><span style="color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.1em;">${l.action}</span></td>
+                        <td style="font-size: 13px; color: #94a3b8;">${l.details}</td>
                     </tr>
                 `).join('');
 
             DGSMgt.ui.initTooltips();
         }
+
 
         async function deleteUser(id) { DGSMgt.ui.confirm('Delete user?', async () => { await DGSMgt.api.delete(`/api/admin/users/${id}`); loadData(); }); }
         async function deleteServer(id) { DGSMgt.ui.confirm('Warning: This will delete the server record AND the Docker container. Continue?', async () => { await DGSMgt.api.delete(`/api/admin/servers/${id}`); loadData(); }); }

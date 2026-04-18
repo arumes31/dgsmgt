@@ -33,6 +33,37 @@ type mockClient struct {
 }
 
 func (m *mockClient) Close() error { return nil }
+func (m *mockClient) ContainerInspect(ctx context.Context, id string) (types.ContainerJSON, error) {
+	return types.ContainerJSON{}, nil
+}
+func (m *mockClient) ContainerStart(ctx context.Context, id string, options container.StartOptions) error {
+	return nil
+}
+func (m *mockClient) ContainerStop(ctx context.Context, id string, options container.StopOptions) error {
+	return nil
+}
+func (m *mockClient) ContainerRestart(ctx context.Context, id string, options container.StopOptions) error {
+	return nil
+}
+func (m *mockClient) ContainerLogs(ctx context.Context, id string, options container.LogsOptions) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
+}
+func (m *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, name string) (container.CreateResponse, error) {
+	return container.CreateResponse{}, nil
+}
+func (m *mockClient) ContainerRemove(ctx context.Context, id string, options container.RemoveOptions) error {
+	return nil
+}
+func (m *mockClient) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
+	return nil, nil
+}
+func (m *mockClient) ImagePull(ctx context.Context, ref string, options image.PullOptions) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
+}
+func (m *mockClient) ContainerStats(ctx context.Context, id string, stream bool) (container.StatsResponseReader, error) {
+	return container.StatsResponseReader{}, nil
+}
+
 
 func TestRunServerConfig(t *testing.T) {
 	os.Setenv("DATABASE_URL", ":memory:")
