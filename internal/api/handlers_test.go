@@ -7,6 +7,7 @@ import (
 	"dgsmgt/internal/middleware"
 	"dgsmgt/internal/models"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,17 @@ type mockClient struct {
 	removeErr   error
 	pullErr     error
 	statsErr    error
+	logsReadErr error
+	statsChan   chan []byte
 }
+
+type errorReader struct{}
+
+func (e errorReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("read error")
+}
+
+func (e errorReader) Close() error { return nil }
 
 func (m *mockClient) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
 	if m.inspectFunc != nil {
@@ -61,6 +72,7 @@ func (m *mockClient) ContainerRestart(ctx context.Context, containerID string, o
 }
 func (m *mockClient) ContainerLogs(ctx context.Context, containerID string, options container.LogsOptions) (io.ReadCloser, error) {
 	if m.logsErr != nil { return nil, m.logsErr }
+	if m.logsReadErr != nil { return errorReader{}, nil }
 	return io.NopCloser(strings.NewReader("log line")), nil
 }
 func (m *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error) {
@@ -99,6 +111,21 @@ func setupTestDB(t *testing.T) *gorm.DB {
 func setupFailDB(t *testing.T, model interface{}) *gorm.DB {
 	db := setupTestDB(t)
 	_ = db.Migrator().DropTable(model)
+	return db
+}
+
+// Helper to force an operation to fail using GORM callbacks
+func setupFailOpDB(t *testing.T, operation string) *gorm.DB {
+	db := setupTestDB(t)
+	err := errors.New("forced " + operation + " error")
+	switch operation {
+	case "create":
+		_ = db.Callback().Create().Before("gorm:create").Register("fail_create", func(d *gorm.DB) { d.Error = err })
+	case "update":
+		_ = db.Callback().Update().Before("gorm:update").Register("fail_update", func(d *gorm.DB) { d.Error = err })
+	case "delete":
+		_ = db.Callback().Delete().Before("gorm:delete").Register("fail_delete", func(d *gorm.DB) { d.Error = err })
+	}
 	return db
 }
 
