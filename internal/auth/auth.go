@@ -1,13 +1,13 @@
 package auth
 
 import (
-	"dgsmgt/internal/db"
 	"dgsmgt/internal/models"
 	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type Claims struct {
@@ -42,17 +42,17 @@ func VerifyToken(tokenString, secret string) (*Claims, error) {
 		return nil, err
 	}
 
-	if !token.Valid {
-		return nil, errors.New("invalid token")
-	}
-
+	_ = token // Keep reference if needed, but ParseWithClaims already validated it
 	return claims, nil
 }
 
-func Authenticate(username, password string) (*models.User, error) {
+func Authenticate(database *gorm.DB, username, password string) (*models.User, error) {
 	var user models.User
-	if err := db.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		return nil, errors.New("invalid username or password")
+	if err := database.Where("username = ?", username).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("invalid username or password")
+		}
+		return nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {

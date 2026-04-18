@@ -8,7 +8,16 @@ import (
 	"os"
 )
 
+var osExit = os.Exit
+
 func main() {
+	if err := Run(); err != nil {
+		log.Printf("Error seeding database: %v", err)
+		osExit(1)
+	}
+}
+
+func Run() error {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		dsn = "dgsmgt.db"
@@ -16,7 +25,7 @@ func main() {
 
 	database, err := db.InitDB(dsn)
 	if err != nil {
-		log.Fatal("Failed to initialize database:", err)
+		return err
 	}
 
 	log.Println("Seeding database...")
@@ -96,4 +105,5 @@ func main() {
 	}
 
 	log.Println("Seeding complete!")
+	return nil
 }

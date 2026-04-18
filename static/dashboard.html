@@ -7,19 +7,6 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="stylesheet" href="/css/app.css">
-    <style>
-        .stats-summary { display: flex; gap: 24px; margin-bottom: 32px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 20px 32px; border-radius: 20px; }
-        .stat-item { display: flex; flex-direction: column; gap: 4px; }
-        .stat-value { font-size: 24px; font-weight: 800; color: white; }
-        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
-        
-        .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
-        .server-card { padding: 24px; border-radius: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); transition: all 0.2s; display: flex; flex-direction: column; }
-        .server-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.2); }
-        
-        .console-output { height: 400px; font-family: monospace; font-size: 13px; color: #d1d5db; overflow-y: auto; background: #080808; padding: 16px; border-radius: 12px; border: 1px solid #222; }
-        .chart-container { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); height: 140px; position: relative; margin-top: 8px; }
-    </style>
 </head>
 <body>
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
@@ -63,15 +50,15 @@
             </div>
 
             <div class="stats-summary">
-                <div class="stat-item">
+                <div class="stat-card shimmer">
                     <span class="stat-label">Total Servers</span>
                     <span id="stat-total" class="stat-value">0</span>
                 </div>
-                <div class="stat-item">
+                <div class="stat-card shimmer">
                     <span class="stat-label">Running</span>
                     <span id="stat-running" class="stat-value" style="color: #4ade80;">0</span>
                 </div>
-                <div class="stat-item">
+                <div class="stat-card shimmer">
                     <span class="stat-label">Offline</span>
                     <span id="stat-offline" class="stat-value" style="color: #f87171;">0</span>
                 </div>
@@ -127,25 +114,35 @@
                 const isRunning = s.status.toLowerCase().includes('up');
                 return `
                 <div class="server-card">
-                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
-                            <h3 style="margin:0; font-size:18px;">${s.name}</h3>
-                            <div style="font-size:11px; color:#64748b; font-family:monospace; margin-top:2px;">${s.id.substring(0,12)}</div>
+                            <h3 style="margin:0; font-size:20px; font-weight:700; color:white;">${s.name}</h3>
+                            <div style="font-size:12px; color:#64748b; font-family:monospace; margin-top:4px; letter-spacing:0.05em;">${s.id.substring(0,12)}</div>
                         </div>
-                        <span class="status-badge ${isRunning ? 'status-running' : 'status-stopped'}">${s.status}</span>
+                        <span class="status-badge ${isRunning ? 'status-running' : 'status-stopped'}">${isRunning ? 'Online' : 'Offline'}</span>
                     </div>
-                    <div style="font-size:13px; color:#94a3b8; margin-bottom:24px; flex-grow:1;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Image</span><span style="font-family:monospace; color:#64748b;">${s.image}</span></div>
-                        <div style="display:flex; justify-content:space-between;"><span>Uptime</span><span style="color:#64748b;">${s.uptime || 'Offline'}</span></div>
+                    
+                    <div style="background:rgba(0,0,0,0.2); border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; gap:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Image</span>
+                            <span style="font-family:monospace; color:#94a3b8; font-size:13px;">${s.image}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Uptime</span>
+                            <span style="color:#94a3b8; font-size:13px;">${s.uptime || '---'}</span>
+                        </div>
                     </div>
-                    <div style="display:flex; gap:8px;">
+
+                    <div style="display:flex; gap:12px;">
                         ${isRunning 
-                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger btn-sm" style="flex:1">Stop</button>`
-                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary btn-sm" style="flex:1">Start</button>`
+                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger" style="flex:1">Stop</button>`
+                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary" style="flex:1">Start</button>`
                         }
-                        <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-sm" title="Restart"><svg width="16" height="16" style="display:block;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                        <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-sm" title="Logs"><svg width="16" height="16"><use href="/icons.svg#icon-logs"></use></svg></button>
-                        ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-sm" title="Metrics"><svg width="16" height="16"><use href="/icons.svg#icon-terminal"></use></svg></button>` : ''}
+                        <div style="display:flex; gap:8px;">
+                            <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-icon" title="Restart"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+                            <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Logs"><svg width="18" height="18"><use href="/icons.svg#icon-logs"></use></svg></button>
+                            ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Metrics"><svg width="18" height="18"><use href="/icons.svg#icon-terminal"></use></svg></button>` : ''}
+                        </div>
                     </div>
                 </div>`;
             }).join('');

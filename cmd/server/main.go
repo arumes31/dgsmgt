@@ -8,6 +8,7 @@ import (
 	"dgsmgt/internal/docker"
 	"dgsmgt/internal/middleware"
 	"dgsmgt/internal/models"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,6 +22,13 @@ import (
 )
 
 func main() {
+	if err := Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func Run() error {
 	// Initialize structured logging
 	logger, _ := zap.NewProduction()
 	if os.Getenv("DEBUG") == "true" {
@@ -56,12 +64,12 @@ func main() {
 	// Initialize Database
 	database, err := db.InitDB(dsn)
 	if err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
 	// Auto Migrate new models
 	if err := database.AutoMigrate(&models.AuditLog{}); err != nil {
-		logger.Fatal("Failed to migrate database", zap.Error(err))
+		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	// Seed Admin User if not exists
@@ -75,7 +83,7 @@ func main() {
 			IsAdmin:      true,
 		}
 		if err := database.Create(&user).Error; err != nil {
-			logger.Fatal("Failed to create admin user", zap.Error(err))
+			return fmt.Errorf("failed to create admin user: %w", err)
 		}
 		logger.Info("Created default admin user", zap.String("username", adminUser))
 	}
@@ -83,7 +91,7 @@ func main() {
 	// Initialize Docker Service
 	dockerService, err := docker.NewService()
 	if err != nil {
-		logger.Fatal("Failed to initialize Docker service", zap.Error(err))
+		return fmt.Errorf("failed to initialize Docker service: %w", err)
 	}
 
 	// Initialize API
@@ -95,7 +103,8 @@ func main() {
 	database.Where("cron_schedule != ?", "").Find(&servers)
 	for _, s := range servers {
 		serverID := s.ContainerID
-		_, err := crunner.AddFunc(s.CronSchedule, func() {
+		schedule := s.CronSchedule
+		_, err := crunner.AddFunc(schedule, func() {
 			logger.Info("Cron: restarting server", zap.String("id", serverID))
 			if err := dockerService.Restart(context.Background(), serverID); err != nil {
 				logger.Error("Cron: failed to restart server", zap.String("id", serverID), zap.Error(err))
@@ -192,26 +201,40 @@ func main() {
 	}
 
 	// Graceful Shutdown Logic
+	serverError := make(chan error, 1)
 	go func() {
 		logger.Info("dgsmgt starting", zap.String("addr", ":"+port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("ListenAndServe failed", zap.Error(err))
+			serverError <- err
 		}
 	}()
 
 	// Wait for interrupt signal to gracefully shutdown the server with a timeout of 10 seconds.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	logger.Info("Shutting down server...")
+	
+	select {
+	case err := <-serverError:
+		return fmt.Errorf("listenandserve failed: %w", err)
+	case <-quit:
+		logger.Info("Shutting down server...")
+	case <-time.After(time.Second):
+		if os.Getenv("TEST_MODE") == "true" {
+			logger.Info("Test mode: shutting down after 1 second")
+		} else {
+			// In non-test mode, we just wait for quit
+			<-quit
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+		return fmt.Errorf("server forced to shutdown: %w", err)
 	}
 
 	logger.Info("Server exiting")
+	return nil
 }
 
 func secureHeadersMiddleware(next http.Handler) http.Handler {

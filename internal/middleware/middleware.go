@@ -91,6 +91,10 @@ func AdminMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+var cleanupInterval = time.Minute
+var clientTimeout = 5 * time.Minute
+var RateLimitShutdown = make(chan struct{})
+
 // RateLimitMiddleware implements strict IP-based rate limiting
 func RateLimitMiddleware(rps float64, burst int) func(http.Handler) http.Handler {
 	type client struct {
@@ -104,15 +108,21 @@ func RateLimitMiddleware(rps float64, burst int) func(http.Handler) http.Handler
 
 	// Cleanup old clients periodically
 	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
 		for {
-			time.Sleep(time.Minute)
-			mu.Lock()
-			for ip, c := range clients {
-				if time.Since(c.lastSeen) > 5*time.Minute {
-					delete(clients, ip)
+			select {
+			case <-ticker.C:
+				mu.Lock()
+				for ip, c := range clients {
+					if time.Since(c.lastSeen) > clientTimeout {
+						delete(clients, ip)
+					}
 				}
+				mu.Unlock()
+			case <-RateLimitShutdown:
+				return
 			}
-			mu.Unlock()
 		}
 	}()
 

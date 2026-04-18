@@ -7,6 +7,7 @@ import (
 	"dgsmgt/internal/models"
 	"dgsmgt/internal/utils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -158,16 +159,18 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request, secret string
 		}
 	}
 
-	user, err := auth.Authenticate(creds.Username, creds.Password)
+	user, err := auth.Authenticate(a.db, creds.Username, creds.Password)
 	if err != nil {
-		a.logger.Warn("Failed login attempt", zap.String("username", creds.Username))
-
-		actual, _ := a.loginAttempts.LoadOrStore(key, &loginAttempt{})
-		attempt := actual.(*loginAttempt)
-		attempt.count++
-		attempt.lastError = time.Now()
-
-		utils.Unauthorized(w, "Invalid credentials")
+		if err.Error() == "invalid username or password" {
+			// Bruteforce protection only on invalid creds, not DB errors
+			actual, _ := a.loginAttempts.LoadOrStore(key, &loginAttempt{})
+			attempt := actual.(*loginAttempt)
+			attempt.count++
+			attempt.lastError = time.Now()
+			utils.Unauthorized(w, "Invalid credentials")
+			return
+		}
+		utils.InternalError(w, err.Error())
 		return
 	}
 
@@ -218,7 +221,11 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 
 	var server models.Server
 	if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err != nil {
-		utils.NotFound(w, "Server not found in database")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "Server not found in database")
+		} else {
+			utils.InternalError(w, err.Error())
+		}
 		return
 	}
 
@@ -407,6 +414,8 @@ func (a *API) ListMyServersHandler(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
 
 	var servers []models.Server
+	var userServers []models.UserServer
+
 	if claims.IsAdmin {
 		if err := a.db.Find(&servers).Error; err != nil {
 			utils.InternalError(w, err.Error())
@@ -419,27 +428,52 @@ func (a *API) ListMyServersHandler(w http.ResponseWriter, r *http.Request) {
 			utils.InternalError(w, err.Error())
 			return
 		}
+		a.db.Where("user_id = ?", claims.UserID).Find(&userServers)
+	}
+
+	// Fetch all container statuses at once
+	containers, _ := a.docker.List(r.Context())
+	statusMap := make(map[string]docker.ContainerInfo)
+	for _, c := range containers {
+		statusMap[c.ID] = c
 	}
 
 	type serverWithPerms struct {
 		models.Server
-		CanStart    bool `json:"can_start"`
-		CanStop     bool `json:"can_stop"`
-		CanRestart  bool `json:"can_restart"`
-		CanViewLogs bool `json:"can_view_logs"`
+		Status      string `json:"status"`
+		Uptime      string `json:"uptime"`
+		CanStart    bool   `json:"can_start"`
+		CanStop     bool   `json:"can_stop"`
+		CanRestart  bool   `json:"can_restart"`
+		CanViewLogs bool   `json:"can_view_logs"`
+	}
+
+	// Map user permissions for quick lookup
+	permMap := make(map[uint]models.UserServer)
+	for _, us := range userServers {
+		permMap[us.ServerID] = us
 	}
 
 	var result []serverWithPerms
 	for _, s := range servers {
 		sp := serverWithPerms{Server: s}
+		
+		// Add status/uptime from Docker
+		if info, ok := statusMap[s.ContainerID]; ok {
+			sp.Status = info.Status
+			sp.Uptime = info.Uptime
+		} else {
+			sp.Status = "offline"
+			sp.Uptime = "Unknown"
+		}
+
 		if claims.IsAdmin {
 			sp.CanStart = true
 			sp.CanStop = true
 			sp.CanRestart = true
 			sp.CanViewLogs = true
 		} else {
-			var us models.UserServer
-			if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, s.ID).First(&us).Error; err == nil {
+			if us, ok := permMap[s.ID]; ok {
 				sp.CanStart = us.CanStart
 				sp.CanStop = us.CanStop
 				sp.CanRestart = us.CanRestart
@@ -508,7 +542,11 @@ func (a *API) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	if err := a.db.First(&user, id).Error; err != nil {
-		utils.NotFound(w, "User not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "User not found")
+		} else {
+			utils.InternalError(w, err.Error())
+		}
 		return
 	}
 
@@ -555,7 +593,11 @@ func (a *API) DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	if err := a.db.First(&user, id).Error; err != nil {
-		utils.NotFound(w, "User not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "User not found")
+		} else {
+			utils.InternalError(w, err.Error())
+		}
 		return
 	}
 
@@ -634,7 +676,11 @@ func (a *API) DeleteServerHandler(w http.ResponseWriter, r *http.Request) {
 
 	var server models.Server
 	if err := a.db.First(&server, id).Error; err != nil {
-		utils.NotFound(w, "Server not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "Server not found")
+		} else {
+			utils.InternalError(w, err.Error())
+		}
 		return
 	}
 

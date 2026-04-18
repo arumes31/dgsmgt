@@ -1,0 +1,21 @@
+mode: set
+dgsmgt/cmd/seed/main.go:13.13,14.30 1 0
+dgsmgt/cmd/seed/main.go:14.30,17.3 2 0
+dgsmgt/cmd/seed/main.go:20.18,22.15 2 1
+dgsmgt/cmd/seed/main.go:22.15,24.3 1 0
+dgsmgt/cmd/seed/main.go:26.2,27.16 2 1
+dgsmgt/cmd/seed/main.go:27.16,29.3 1 0
+dgsmgt/cmd/seed/main.go:31.2,49.23 3 1
+dgsmgt/cmd/seed/main.go:49.23,55.17 4 1
+dgsmgt/cmd/seed/main.go:55.17,57.4 1 0
+dgsmgt/cmd/seed/main.go:61.2,82.25 2 1
+dgsmgt/cmd/seed/main.go:82.25,84.17 2 1
+dgsmgt/cmd/seed/main.go:84.17,86.4 1 0
+dgsmgt/cmd/seed/main.go:91.2,91.33 1 1
+dgsmgt/cmd/seed/main.go:91.33,92.90 1 1
+dgsmgt/cmd/seed/main.go:92.90,94.4 1 0
+dgsmgt/cmd/seed/main.go:98.2,98.93 1 1
+dgsmgt/cmd/seed/main.go:98.93,100.3 1 0
+dgsmgt/cmd/seed/main.go:103.2,103.106 1 1
+dgsmgt/cmd/seed/main.go:103.106,105.3 1 0
+dgsmgt/cmd/seed/main.go:107.2,108.12 2 1

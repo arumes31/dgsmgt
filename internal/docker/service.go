@@ -76,7 +76,7 @@ func (s *Service) GetStatus(ctx context.Context, containerID string) (*Container
 	}
 
 	return &ContainerInfo{
-		ID:     inspect.ID[:12],
+		ID:     inspect.ID,
 		Names:  []string{inspect.Name},
 		Status: inspect.State.Status,
 		State:  inspect.State.Status,
@@ -211,7 +211,7 @@ func (s *Service) List(ctx context.Context) ([]ContainerInfo, error) {
 		}
 
 		infoList = append(infoList, ContainerInfo{
-			ID:     c.ID[:12],
+			ID:     c.ID,
 			Names:  c.Names,
 			Status: c.Status,
 			State:  c.State,

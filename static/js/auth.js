@@ -42,7 +42,8 @@ const DGSMgt = {
                 }
 
                 if (response.status === 204) return true;
-                return response.json();
+                const result = await response.json();
+                return result.data !== undefined ? result.data : result;
             } catch (err) {
                 console.error(`API Error (${url}):`, err);
                 throw err;
@@ -120,7 +121,7 @@ const DGSMgt = {
             toast.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
                     <span>${message}</span>
-                    <button onclick="this.closest('.toast').remove()" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;">
+                    <button onclick="this.closest('.toast').remove()" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;" title="Close">
                         <svg width="14" height="14" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
                     </button>
                 </div>

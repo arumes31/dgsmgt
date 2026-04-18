@@ -6,8 +6,15 @@
     <title>Redirecting... | DGSMgt</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
-        body { background: #050505; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; color: white; font-family: system-ui; }
-        .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top-color: #3b82f6; animation: spin 1s linear infinite; }
+        body { background: #050505; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; color: white; font-family: system-ui, -apple-system, sans-serif; }
+        .spinner { 
+            width: 40px; 
+            height: 40px; 
+            border: 3px solid rgba(255,255,255,0.05); 
+            border-radius: 50%; 
+            border-top-color: #3b82f6; 
+            animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite; 
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <script>
