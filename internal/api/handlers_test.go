@@ -441,9 +441,9 @@ func TestUnauthorizedAction(t *testing.T) {
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	
-	// Verify canAccess separately first
-	if !api.canAccess(claims, "cont-id-123") {
-		t.Fatal("canAccess returned false, expected true")
+	// Verify getAccess separately first
+	if _, _, status := api.getAccess(claims, "cont-id-123"); status != http.StatusOK {
+		t.Fatalf("getAccess returned status %d, expected %d", status, http.StatusOK)
 	}
 	
 	api.ActionHandler(w, req)

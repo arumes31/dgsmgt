@@ -111,15 +111,13 @@ const DGSMgt = {
             if (!container) {
                 container = document.createElement('div');
                 container.id = 'toast-container';
-                container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 12px; z-index: 9999; pointer-events: none;';
                 document.body.appendChild(container);
             }
 
             const toast = document.createElement('div');
             toast.className = `toast toast-${type}`;
-            toast.style.pointerEvents = 'auto';
             toast.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; width: 100%;">
                     <span>${message}</span>
                     <button onclick="this.closest('.toast').remove()" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;" title="Close">
                         <svg width="14" height="14" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
@@ -132,7 +130,7 @@ const DGSMgt = {
                 toast.classList.add('show');
                 setTimeout(() => {
                     toast.classList.remove('show');
-                    setTimeout(() => toast.remove(), 300);
+                    setTimeout(() => toast.remove(), 500);
                 }, 4000);
             }, 50);
         },
@@ -183,7 +181,7 @@ const DGSMgt = {
             const dialog = document.createElement('dialog');
             dialog.id = id;
             dialog.className = 'modal-dialog';
-            dialog.style.maxWidth = maxWidth;
+            dialog.style.width = maxWidth;
             
             dialog.innerHTML = `
                 <div class="modal-content" role="document">
@@ -233,10 +231,10 @@ const DGSMgt = {
         confirm: (message, onConfirm) => {
             const body = `
                 <div style="text-align: center; padding: 10px 0;">
-                    <div style="width: 56px; height: 56px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <div style="width: 72px; height: 72px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; border: 1px solid rgba(239, 68, 68, 0.2); shadow: 0 10px 20px -5px var(--danger-glow);">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                     </div>
-                    <p style="color: #94a3b8; font-size: 15px; line-height: 1.5; margin: 0;">${message}</p>
+                    <p style="color: var(--fg-secondary); font-size: 16px; font-weight: 500; line-height: 1.6; margin: 0;">${message}</p>
                 </div>
             `;
             const footer = `

@@ -98,8 +98,12 @@ func (m *mockClient) ImagePull(ctx context.Context, ref string, options image.Pu
 	return io.NopCloser(strings.NewReader("")), nil
 }
 func (m *mockClient) ContainerStats(ctx context.Context, containerID string, stream bool) (container.StatsResponseReader, error) {
-	if m.statsErr != nil { return container.StatsResponseReader{}, m.statsErr }
-	return container.StatsResponseReader{}, nil
+	if m.statsErr != nil {
+		return container.StatsResponseReader{}, m.statsErr
+	}
+	return container.StatsResponseReader{
+		Body: io.NopCloser(strings.NewReader(`{"id":"123","cpu_stats":{"cpu_usage":{"total_usage":100}}}`)),
+	}, nil
 }
 
 type errorMockClient struct {

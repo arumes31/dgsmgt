@@ -194,8 +194,16 @@ func (a *API) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
-		utils.Forbidden(w, "Access denied")
+	_, _, status := a.getAccess(claims, id)
+	if status != http.StatusOK {
+		switch status {
+		case http.StatusNotFound:
+			utils.NotFound(w, "Server not found")
+		case http.StatusForbidden:
+			utils.Forbidden(w, "Access denied")
+		default:
+			utils.InternalError(w, "Failed to check access")
+		}
 		return
 	}
 
@@ -214,42 +222,33 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
-		utils.Forbidden(w, "Access denied")
-		return
-	}
-
-	var server models.Server
-	if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.NotFound(w, "Server not found in database")
-		} else {
-			utils.InternalError(w, err.Error())
+	userServer, server, status := a.getAccess(claims, id)
+	if status != http.StatusOK {
+		switch status {
+		case http.StatusNotFound:
+			utils.NotFound(w, "Server not found")
+		case http.StatusForbidden:
+			utils.Forbidden(w, "Access denied")
+		default:
+			utils.InternalError(w, "Failed to check access")
 		}
 		return
 	}
 
 	// Check specific permissions if not admin
 	if !claims.IsAdmin {
-		var userServer models.UserServer
-		if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err == nil {
-			switch action {
-			case "start":
-				if !userServer.CanStart {
-					utils.Forbidden(w, "Permission denied: cannot start")
-					return
-				}
-			case "stop":
-				if !userServer.CanStop {
-					utils.Forbidden(w, "Permission denied: cannot stop")
-					return
-				}
-			case "restart":
-				if !userServer.CanRestart {
-					utils.Forbidden(w, "Permission denied: cannot restart")
-					return
-				}
-			}
+		allowed := false
+		switch action {
+		case "start":
+			allowed = userServer.CanStart
+		case "stop":
+			allowed = userServer.CanStop
+		case "restart":
+			allowed = userServer.CanRestart
+		}
+		if !allowed {
+			utils.Forbidden(w, "Permission denied for this action")
+			return
 		}
 	}
 
@@ -272,7 +271,7 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.recordAuditLog(claims, action, &server, "Triggered container action")
+	a.recordAuditLog(claims, action, server, "Triggered container action")
 	utils.Success(w, map[string]string{"status": "ok"})
 }
 
@@ -281,8 +280,16 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
-		utils.Forbidden(w, "Access denied")
+	_, _, status := a.getAccess(claims, id)
+	if status != http.StatusOK {
+		switch status {
+		case http.StatusNotFound:
+			utils.NotFound(w, "Server not found")
+		case http.StatusForbidden:
+			utils.Forbidden(w, "Access denied")
+		default:
+			utils.InternalError(w, "Failed to check access")
+		}
 		return
 	}
 
@@ -328,24 +335,26 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
-		utils.Forbidden(w, "Access denied")
+	userServer, server, status := a.getAccess(claims, id)
+	if status != http.StatusOK {
+		switch status {
+		case http.StatusNotFound:
+			utils.NotFound(w, "Server not found")
+		case http.StatusForbidden:
+			utils.Forbidden(w, "Access denied")
+		default:
+			utils.InternalError(w, "Failed to check access")
+		}
 		return
 	}
 
 	// Check view logs permission if not admin
-	if !claims.IsAdmin {
-		var server models.Server
-		if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err == nil {
-			var userServer models.UserServer
-			if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err == nil {
-				if !userServer.CanViewLogs {
-					utils.Forbidden(w, "Permission denied: cannot view logs")
-					return
-				}
-			}
-		}
+	if !claims.IsAdmin && !userServer.CanViewLogs {
+		utils.Forbidden(w, "Permission denied: cannot view logs")
+		return
 	}
+
+	a.recordAuditLog(claims, "logs", server, "Viewed container logs")
 
 	conn, err := a.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -390,22 +399,28 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *API) canAccess(claims *auth.Claims, containerID string) bool {
-	if claims.IsAdmin {
-		return true
-	}
-
+func (a *API) getAccess(claims *auth.Claims, containerID string) (*models.UserServer, *models.Server, int) {
 	var server models.Server
 	if err := a.db.Where("container_id LIKE ?", containerID+"%").First(&server).Error; err != nil {
-		return false
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, http.StatusNotFound
+		}
+		return nil, nil, http.StatusInternalServerError
+	}
+
+	if claims.IsAdmin {
+		return &models.UserServer{UserID: claims.UserID, ServerID: server.ID, CanStart: true, CanStop: true, CanRestart: true, CanViewLogs: true}, &server, http.StatusOK
 	}
 
 	var userServer models.UserServer
 	if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err != nil {
-		return false
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, http.StatusForbidden
+		}
+		return nil, nil, http.StatusInternalServerError
 	}
 
-	return true
+	return &userServer, &server, http.StatusOK
 }
 
 // User Handlers

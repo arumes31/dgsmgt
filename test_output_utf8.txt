@@ -1,0 +1,455 @@
+﻿=== RUN   TestCoverageTarget_Full
+=== RUN   TestCoverageTarget_Full/JSONFailures
+=== RUN   TestCoverageTarget_Full/StatusDockerFail
+=== RUN   TestCoverageTarget_Full/ActionPermissions
+=== RUN   TestCoverageTarget_Full/WSFails
+=== RUN   TestCoverageTarget_Full/ListMyServersMapping
+=== RUN   TestCoverageTarget_Full/DBFailures
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:435 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`deleted_at` IS NULL
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:404 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE container_id LIKE "abc%" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+--- PASS: TestCoverageTarget_Full (0.03s)
+    --- PASS: TestCoverageTarget_Full/JSONFailures (0.00s)
+    --- PASS: TestCoverageTarget_Full/StatusDockerFail (0.00s)
+    --- PASS: TestCoverageTarget_Full/ActionPermissions (0.01s)
+    --- PASS: TestCoverageTarget_Full/WSFails (0.00s)
+    --- PASS: TestCoverageTarget_Full/ListMyServersMapping (0.00s)
+    --- PASS: TestCoverageTarget_Full/DBFailures (0.00s)
+=== RUN   TestCoverageTarget_EdgeCases
+=== RUN   TestCoverageTarget_EdgeCases/StripHeader
+--- PASS: TestCoverageTarget_EdgeCases (0.00s)
+    --- PASS: TestCoverageTarget_EdgeCases/StripHeader (0.00s)
+=== RUN   TestHandlers_GORM_Failures
+=== RUN   TestHandlers_GORM_Failures/ChangePassword_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:112 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m UPDATE `users` SET `password_hash`="$2a$10$JVFOJt0l7qlxfUoIxU4U6.5SM9kAA5RtVQnzAA7aTZ5PXttMJQw9G",`updated_at`="2026-04-18 13:01:08.68" WHERE id = 2 AND `users`.`deleted_at` IS NULL
+=== RUN   TestHandlers_GORM_Failures/Login_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "testuser" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_GORM_Failures/Action_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:404 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE container_id LIKE "abc%" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestHandlers_GORM_Failures/ListMyServers_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:435 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`deleted_at` IS NULL
+=== RUN   TestHandlers_GORM_Failures/Admin_ListUsers_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:508 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`deleted_at` IS NULL
+=== RUN   TestHandlers_GORM_Failures/Admin_CreateUser_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:543 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[1.546ms] [34;1m[rows:0][0m INSERT INTO `users` (`created_at`,`updated_at`,`deleted_at`,`username`,`password_hash`,`is_admin`) VALUES ("2026-04-18 13:01:08.825","2026-04-18 13:01:08.825",NULL,"newuser","$2a$10$ViHOclu1LYndrWxMW4lCPOcszywcVnfKOB54yFVMU6YlLr82iXzxm",false) RETURNING `id`
+=== RUN   TestHandlers_GORM_Failures/Admin_UpdateUser_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:559 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[1.551ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "1" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_GORM_Failures/Admin_DeleteUser_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:610 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "1" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_GORM_Failures/Admin_ListServers_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:632 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`deleted_at` IS NULL
+=== RUN   TestHandlers_GORM_Failures/Admin_CreateServer_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:676 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m INSERT INTO `servers` (`created_at`,`updated_at`,`deleted_at`,`name`,`container_id`,`image`,`config_json`,`cron_schedule`) VALUES ("2026-04-18 13:01:08.845","2026-04-18 13:01:08.845",NULL,"newserver","new-id","nginx","{""name"":""newserver"",""image"":""nginx"",""ports"":[],""env"":null,""volumes"":null,""cron_schedule"":""""}","") RETURNING `id`
+=== RUN   TestHandlers_GORM_Failures/Admin_DeleteServer_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:693 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`id` = "1" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestHandlers_GORM_Failures/Admin_Assign_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:749 [35;1mSQL logic error: no such table: user_servers (1)
+[0m[33m[3.465ms] [34;1m[rows:0][0m UPDATE `user_servers` SET `can_start`=false,`can_stop`=false,`can_restart`=false,`can_view_logs`=false WHERE `user_id` = 1 AND `server_id` = 1
+=== RUN   TestHandlers_GORM_Failures/Admin_DeleteAssignment_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:765 [35;1mSQL logic error: no such table: user_servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m DELETE FROM `user_servers` WHERE user_id = "1" AND server_id = "1"
+=== RUN   TestHandlers_GORM_Failures/Admin_AuditLogs_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:778 [35;1mSQL logic error: no such table: audit_logs (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `audit_logs` WHERE `audit_logs`.`deleted_at` IS NULL ORDER BY created_at desc LIMIT 100
+=== RUN   TestHandlers_GORM_Failures/Admin_ListAssignments_DBFail
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:787 [35;1mSQL logic error: no such table: user_servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `user_servers`
+--- PASS: TestHandlers_GORM_Failures (0.32s)
+    --- PASS: TestHandlers_GORM_Failures/ChangePassword_DBFail (0.13s)
+    --- PASS: TestHandlers_GORM_Failures/Login_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/Action_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/ListMyServers_DBFail (0.02s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_ListUsers_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_CreateUser_DBFail (0.11s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_UpdateUser_DBFail (0.01s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_DeleteUser_DBFail (0.01s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_ListServers_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_CreateServer_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_DeleteServer_DBFail (0.01s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_Assign_DBFail (0.01s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_DeleteAssignment_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_AuditLogs_DBFail (0.00s)
+    --- PASS: TestHandlers_GORM_Failures/Admin_ListAssignments_DBFail (0.00s)
+=== RUN   TestHandlers_ValidationFailures
+=== RUN   TestHandlers_ValidationFailures/CreateUser_InvalidJSON
+=== RUN   TestHandlers_ValidationFailures/CreateUser_ValidationFail
+=== RUN   TestHandlers_ValidationFailures/UpdateUser_InvalidJSON
+=== RUN   TestHandlers_ValidationFailures/UpdateUser_ValidationFail
+=== RUN   TestHandlers_ValidationFailures/CreateServer_InvalidJSON
+=== RUN   TestHandlers_ValidationFailures/CreateServer_ValidationFail
+=== RUN   TestHandlers_ValidationFailures/AssignServer_InvalidJSON
+=== RUN   TestHandlers_ValidationFailures/AssignServer_ValidationFail
+--- PASS: TestHandlers_ValidationFailures (0.01s)
+    --- PASS: TestHandlers_ValidationFailures/CreateUser_InvalidJSON (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/CreateUser_ValidationFail (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/UpdateUser_InvalidJSON (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/UpdateUser_ValidationFail (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/CreateServer_InvalidJSON (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/CreateServer_ValidationFail (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/AssignServer_InvalidJSON (0.00s)
+    --- PASS: TestHandlers_ValidationFailures/AssignServer_ValidationFail (0.00s)
+=== RUN   TestHandlers_Docker_Failures
+=== RUN   TestHandlers_Docker_Failures/CreateServer_ImagePullFail
+=== RUN   TestHandlers_Docker_Failures/CreateServer_ContainerCreateFail
+=== RUN   TestHandlers_Docker_Failures/DeleteServer_ContainerRemoveFail
+=== RUN   TestHandlers_Docker_Failures/Action_StartFail
+=== RUN   TestHandlers_Docker_Failures/UpdateUser_NotFound
+
+2026/04/18 13:01:08 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:559 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "999" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_Docker_Failures/MetricsHandler_StatsFail
+=== RUN   TestHandlers_Docker_Failures/LogsHandler_LogsFail
+--- PASS: TestHandlers_Docker_Failures (0.05s)
+    --- PASS: TestHandlers_Docker_Failures/CreateServer_ImagePullFail (0.00s)
+    --- PASS: TestHandlers_Docker_Failures/CreateServer_ContainerCreateFail (0.00s)
+    --- PASS: TestHandlers_Docker_Failures/DeleteServer_ContainerRemoveFail (0.01s)
+    --- PASS: TestHandlers_Docker_Failures/Action_StartFail (0.01s)
+    --- PASS: TestHandlers_Docker_Failures/UpdateUser_NotFound (0.00s)
+    --- PASS: TestHandlers_Docker_Failures/MetricsHandler_StatsFail (0.02s)
+    --- PASS: TestHandlers_Docker_Failures/LogsHandler_LogsFail (0.01s)
+=== RUN   TestHandlers_DeepCoverage
+=== RUN   TestHandlers_DeepCoverage/UpdateUser_PasswordBranch
+=== RUN   TestHandlers_DeepCoverage/HashPassword_Failures
+=== RUN   TestHandlers_DeepCoverage/DeleteServer_NotFound
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:693 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`id` = "999" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestHandlers_DeepCoverage/LogsHandler_PermissionDenied
+=== RUN   TestHandlers_DeepCoverage/DeleteUser_FirstFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:610 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "1" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_DeepCoverage/UpdateUser_SaveFail
+=== RUN   TestHandlers_DeepCoverage/DeleteUser_DeleteFail
+=== RUN   TestHandlers_DeepCoverage/DeleteServer_DeleteFail
+=== RUN   TestHandlers_DeepCoverage/ListMyServers_UserDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:442 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT `servers`.`id`,`servers`.`created_at`,`servers`.`updated_at`,`servers`.`deleted_at`,`servers`.`name`,`servers`.`container_id`,`servers`.`image`,`servers`.`config_json`,`servers`.`cron_schedule` FROM `servers` JOIN user_servers ON user_servers.server_id = servers.id WHERE user_servers.user_id = 1 AND `servers`.`deleted_at` IS NULL
+=== RUN   TestHandlers_DeepCoverage/LoginHandler_EdgeCases
+=== RUN   TestHandlers_DeepCoverage/LoginHandler_EdgeCases/InvalidJSON
+=== RUN   TestHandlers_DeepCoverage/LoginHandler_EdgeCases/ValidationFail
+=== RUN   TestHandlers_DeepCoverage/LoginHandler_EdgeCases/BruteForceProtect
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "baduser" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "baduser" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "baduser" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "baduser" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "baduser" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_DeepCoverage/LoginHandler_EdgeCases/AuthDBError
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "a" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlers_DeepCoverage/LoginHandler_EdgeCases/TokenGenFail
+=== RUN   TestHandlers_DeepCoverage/LogsHandler_Edge
+=== RUN   TestHandlers_DeepCoverage/LogsHandler_Edge/UpgradeFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:404 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE container_id LIKE "%" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestHandlers_DeepCoverage/LogsHandler_Edge/DockerLogsFail
+=== RUN   TestHandlers_DeepCoverage/MetricsHandler_WriteFail
+--- PASS: TestHandlers_DeepCoverage (0.46s)
+    --- PASS: TestHandlers_DeepCoverage/UpdateUser_PasswordBranch (0.14s)
+    --- PASS: TestHandlers_DeepCoverage/HashPassword_Failures (0.00s)
+    --- PASS: TestHandlers_DeepCoverage/DeleteServer_NotFound (0.01s)
+    --- PASS: TestHandlers_DeepCoverage/LogsHandler_PermissionDenied (0.01s)
+    --- PASS: TestHandlers_DeepCoverage/DeleteUser_FirstFail (0.00s)
+    --- PASS: TestHandlers_DeepCoverage/UpdateUser_SaveFail (0.01s)
+    --- PASS: TestHandlers_DeepCoverage/DeleteUser_DeleteFail (0.00s)
+    --- PASS: TestHandlers_DeepCoverage/DeleteServer_DeleteFail (0.01s)
+    --- PASS: TestHandlers_DeepCoverage/ListMyServers_UserDBFail (0.00s)
+    --- PASS: TestHandlers_DeepCoverage/LoginHandler_EdgeCases (0.25s)
+        --- PASS: TestHandlers_DeepCoverage/LoginHandler_EdgeCases/InvalidJSON (0.00s)
+        --- PASS: TestHandlers_DeepCoverage/LoginHandler_EdgeCases/ValidationFail (0.00s)
+        --- PASS: TestHandlers_DeepCoverage/LoginHandler_EdgeCases/BruteForceProtect (0.00s)
+        --- PASS: TestHandlers_DeepCoverage/LoginHandler_EdgeCases/AuthDBError (0.01s)
+        --- PASS: TestHandlers_DeepCoverage/LoginHandler_EdgeCases/TokenGenFail (0.24s)
+    --- PASS: TestHandlers_DeepCoverage/LogsHandler_Edge (0.01s)
+        --- PASS: TestHandlers_DeepCoverage/LogsHandler_Edge/UpgradeFail (0.00s)
+        --- PASS: TestHandlers_DeepCoverage/LogsHandler_Edge/DockerLogsFail (0.01s)
+    --- PASS: TestHandlers_DeepCoverage/MetricsHandler_WriteFail (0.00s)
+=== RUN   TestValidateCron
+=== RUN   TestValidateCron/*_*_*_*_*
+=== RUN   TestValidateCron/0_0_*_*_*
+=== RUN   TestValidateCron/invalid
+=== RUN   TestValidateCron/#00
+--- PASS: TestValidateCron (0.00s)
+    --- PASS: TestValidateCron/*_*_*_*_* (0.00s)
+    --- PASS: TestValidateCron/0_0_*_*_* (0.00s)
+    --- PASS: TestValidateCron/invalid (0.00s)
+    --- PASS: TestValidateCron/#00 (0.00s)
+=== RUN   TestCheckOrigin
+--- PASS: TestCheckOrigin (0.00s)
+=== RUN   TestLoginHandlerBruteForce
+--- PASS: TestLoginHandlerBruteForce (0.00s)
+=== RUN   TestStripDockerHeader
+--- PASS: TestStripDockerHeader (0.00s)
+=== RUN   TestGetAccess
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:404 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE container_id LIKE "nonexistent%" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:416 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `user_servers` WHERE user_id = 1 AND server_id = 1 ORDER BY `user_servers`.`user_id` LIMIT 1
+--- PASS: TestGetAccess (0.00s)
+=== RUN   TestHandlersErrorPathsExtra
+=== RUN   TestHandlersErrorPathsExtra/ChangePasswordValidationFail
+=== RUN   TestHandlersErrorPathsExtra/LoginValidationFail
+=== RUN   TestHandlersErrorPathsExtra/StatusForbidden
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:416 [35;1mrecord not found
+[0m[33m[0.547ms] [34;1m[rows:0][0m SELECT * FROM `user_servers` WHERE user_id = 2 AND server_id = 1 ORDER BY `user_servers`.`user_id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/ActionForbidden
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:416 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `user_servers` WHERE user_id = 2 AND server_id = 1 ORDER BY `user_servers`.`user_id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/ActionInvalid
+=== RUN   TestHandlersErrorPathsExtra/MetricsForbidden
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:416 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `user_servers` WHERE user_id = 2 AND server_id = 1 ORDER BY `user_servers`.`user_id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/LogsForbidden
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:416 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `user_servers` WHERE user_id = 2 AND server_id = 1 ORDER BY `user_servers`.`user_id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/UpdateUserNotFound
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:559 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "999" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/CreateServerValidationFail
+=== RUN   TestHandlersErrorPathsExtra/ChangePasswordDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:112 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m UPDATE `users` SET `password_hash`="$2a$10$xAVP92zq6ud6IUvQdvwlKOhIBgkW1nRSyQqPBIbamW7Op50CZIaEy",`updated_at`="2026-04-18 13:01:09.569" WHERE id = 1 AND `users`.`deleted_at` IS NULL
+=== RUN   TestHandlersErrorPathsExtra/LoginInvalidCredentials
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "wrong" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/LoginDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/auth/auth.go:51 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE username = "test" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/CreateUserInvalidJSON
+=== RUN   TestHandlersErrorPathsExtra/ChangePasswordInvalidJSON
+=== RUN   TestHandlersErrorPathsExtra/CreateServerInvalidJSON
+=== RUN   TestHandlersErrorPathsExtra/UpdateUserNotFound#01
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:559 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "999" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/DeleteServerNotFound
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:693 [35;1mrecord not found
+[0m[33m[0.551ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`id` = "999" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/CreateUserHashingFail
+=== RUN   TestHandlersErrorPathsExtra/ActionNotFound
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:404 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE container_id LIKE "nonexistent%" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestHandlersErrorPathsExtra/ActionInvalidAction
+=== RUN   TestHandlersErrorPathsExtra/recordAuditLogFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:132 [35;1mSQL logic error: no such table: audit_logs (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m INSERT INTO `audit_logs` (`created_at`,`updated_at`,`deleted_at`,`user_id`,`username`,`action`,`server_id`,`server_name`,`details`) VALUES ("2026-04-18 13:01:09.622","2026-04-18 13:01:09.622",NULL,1,"test","action",0,"","details") RETURNING `id`
+--- PASS: TestHandlersErrorPathsExtra (0.22s)
+    --- PASS: TestHandlersErrorPathsExtra/ChangePasswordValidationFail (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/LoginValidationFail (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/StatusForbidden (0.01s)
+    --- PASS: TestHandlersErrorPathsExtra/ActionForbidden (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/ActionInvalid (0.01s)
+    --- PASS: TestHandlersErrorPathsExtra/MetricsForbidden (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/LogsForbidden (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/UpdateUserNotFound (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/CreateServerValidationFail (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/ChangePasswordDBFail (0.12s)
+    --- PASS: TestHandlersErrorPathsExtra/LoginInvalidCredentials (0.01s)
+    --- PASS: TestHandlersErrorPathsExtra/LoginDBFail (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/CreateUserInvalidJSON (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/ChangePasswordInvalidJSON (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/CreateServerInvalidJSON (0.01s)
+    --- PASS: TestHandlersErrorPathsExtra/UpdateUserNotFound#01 (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/DeleteServerNotFound (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/CreateUserHashingFail (0.01s)
+    --- PASS: TestHandlersErrorPathsExtra/ActionNotFound (0.01s)
+    --- PASS: TestHandlersErrorPathsExtra/ActionInvalidAction (0.00s)
+    --- PASS: TestHandlersErrorPathsExtra/recordAuditLogFail (0.00s)
+=== RUN   TestListMyServersUser
+--- PASS: TestListMyServersUser (0.01s)
+=== RUN   TestLogsHandlerPermissionDenied
+--- PASS: TestLogsHandlerPermissionDenied (0.01s)
+=== RUN   TestAuditLogFailure
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:132 [35;1mSQL logic error: no such table: audit_logs (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m INSERT INTO `audit_logs` (`created_at`,`updated_at`,`deleted_at`,`user_id`,`username`,`action`,`server_id`,`server_name`,`details`) VALUES ("2026-04-18 13:01:09.643","2026-04-18 13:01:09.643",NULL,1,"test","test",0,"","details") RETURNING `id`
+--- PASS: TestAuditLogFailure (0.00s)
+=== RUN   TestDatabaseFailures
+=== RUN   TestDatabaseFailures/ListUsersDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:508 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`deleted_at` IS NULL
+=== RUN   TestDatabaseFailures/ListServersDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:632 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`deleted_at` IS NULL
+=== RUN   TestDatabaseFailures/ListAuditLogsDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:778 [35;1mSQL logic error: no such table: audit_logs (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `audit_logs` WHERE `audit_logs`.`deleted_at` IS NULL ORDER BY created_at desc LIMIT 100
+=== RUN   TestDatabaseFailures/ListAssignmentsDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:787 [35;1mSQL logic error: no such table: user_servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `user_servers`
+=== RUN   TestDatabaseFailures/UpdateUserDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:559 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "1" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestDatabaseFailures/CreateUserDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:543 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m INSERT INTO `users` (`created_at`,`updated_at`,`deleted_at`,`username`,`password_hash`,`is_admin`) VALUES ("2026-04-18 13:01:09.763","2026-04-18 13:01:09.763",NULL,"testuser","$2a$10$5ch8tT0C1AfLUPbocpUgh.5P9rjriIy6jMjb.z8o9JO7ESxzouckO",false) RETURNING `id`
+=== RUN   TestDatabaseFailures/DeleteUserDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:610 [35;1mSQL logic error: no such table: users (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "1" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+=== RUN   TestDatabaseFailures/CreateServerDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:676 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m INSERT INTO `servers` (`created_at`,`updated_at`,`deleted_at`,`name`,`container_id`,`image`,`config_json`,`cron_schedule`) VALUES ("2026-04-18 13:01:09.777","2026-04-18 13:01:09.777",NULL,"testserver","new-id","alpine","{""name"":""testserver"",""image"":""alpine"",""ports"":null,""env"":null,""volumes"":null,""cron_schedule"":""""}","") RETURNING `id`
+=== RUN   TestDatabaseFailures/DeleteServerDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:693 [35;1mSQL logic error: no such table: servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE `servers`.`id` = "1" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+=== RUN   TestDatabaseFailures/AssignServerDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:749 [35;1mSQL logic error: no such table: user_servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m UPDATE `user_servers` SET `can_start`=false,`can_stop`=false,`can_restart`=false,`can_view_logs`=false WHERE `user_id` = 1 AND `server_id` = 1
+=== RUN   TestDatabaseFailures/DeleteAssignmentDBFail
+
+2026/04/18 13:01:09 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:765 [35;1mSQL logic error: no such table: user_servers (1)
+[0m[33m[0.000ms] [34;1m[rows:0][0m DELETE FROM `user_servers` WHERE user_id = "1" AND server_id = "1"
+--- PASS: TestDatabaseFailures (0.15s)
+    --- PASS: TestDatabaseFailures/ListUsersDBFail (0.00s)
+    --- PASS: TestDatabaseFailures/ListServersDBFail (0.00s)
+    --- PASS: TestDatabaseFailures/ListAuditLogsDBFail (0.00s)
+    --- PASS: TestDatabaseFailures/ListAssignmentsDBFail (0.00s)
+    --- PASS: TestDatabaseFailures/UpdateUserDBFail (0.00s)
+    --- PASS: TestDatabaseFailures/CreateUserDBFail (0.10s)
+    --- PASS: TestDatabaseFailures/DeleteUserDBFail (0.01s)
+    --- PASS: TestDatabaseFailures/CreateServerDBFail (0.01s)
+    --- PASS: TestDatabaseFailures/DeleteServerDBFail (0.01s)
+    --- PASS: TestDatabaseFailures/AssignServerDBFail (0.00s)
+    --- PASS: TestDatabaseFailures/DeleteAssignmentDBFail (0.00s)
+=== RUN   TestActionHandlerFail
+--- PASS: TestActionHandlerFail (0.01s)
+=== RUN   TestHandlersSuccessPathsExtra
+=== RUN   TestHandlersSuccessPathsExtra/StatusSuccess
+=== RUN   TestHandlersSuccessPathsExtra/ActionSuccess
+=== RUN   TestHandlersSuccessPathsExtra/MetricsSuccess
+    handlers_extra_test.go:767: Expected 200, got 400
+=== RUN   TestHandlersSuccessPathsExtra/LogsSuccess
+    handlers_extra_test.go:786: Expected 200, got 400
+--- FAIL: TestHandlersSuccessPathsExtra (0.02s)
+    --- PASS: TestHandlersSuccessPathsExtra/StatusSuccess (0.00s)
+    --- PASS: TestHandlersSuccessPathsExtra/ActionSuccess (0.00s)
+    --- FAIL: TestHandlersSuccessPathsExtra/MetricsSuccess (0.01s)
+    --- FAIL: TestHandlersSuccessPathsExtra/LogsSuccess (0.01s)
+=== RUN   TestLogsHandler_ReaderError
+--- PASS: TestLogsHandler_ReaderError (0.06s)
+=== RUN   TestHealthHandler
+--- PASS: TestHealthHandler (0.00s)
+=== RUN   TestLoginHandler
+--- PASS: TestLoginHandler (0.22s)
+=== RUN   TestMeHandler
+--- PASS: TestMeHandler (0.00s)
+=== RUN   TestListMyServersHandler
+--- PASS: TestListMyServersHandler (0.01s)
+=== RUN   TestStatusHandler
+--- PASS: TestStatusHandler (0.00s)
+=== RUN   TestActionHandler
+--- PASS: TestActionHandler (0.01s)
+=== RUN   TestCreateUserHandler
+--- PASS: TestCreateUserHandler (0.11s)
+=== RUN   TestDeleteUserHandler
+--- PASS: TestDeleteUserHandler (0.00s)
+=== RUN   TestCreateServerHandler
+--- PASS: TestCreateServerHandler (0.01s)
+=== RUN   TestAssignServerHandler
+--- PASS: TestAssignServerHandler (0.00s)
+=== RUN   TestChangePasswordHandler
+--- PASS: TestChangePasswordHandler (0.11s)
+=== RUN   TestListUsersHandler
+--- PASS: TestListUsersHandler (0.01s)
+=== RUN   TestUpdateUserHandler
+--- PASS: TestUpdateUserHandler (0.01s)
+=== RUN   TestDeleteServerHandler
+--- PASS: TestDeleteServerHandler (0.00s)
+=== RUN   TestListAssignmentsHandler
+--- PASS: TestListAssignmentsHandler (0.00s)
+=== RUN   TestDeleteAssignmentHandler
+--- PASS: TestDeleteAssignmentHandler (0.01s)
+=== RUN   TestListAuditLogsHandler
+--- PASS: TestListAuditLogsHandler (0.00s)
+=== RUN   TestListServersHandlerAdmin
+--- PASS: TestListServersHandlerAdmin (0.01s)
+=== RUN   TestActionHandlerNotFound
+
+2026/04/18 13:01:10 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:404 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `servers` WHERE container_id LIKE "nonexistent%" AND `servers`.`deleted_at` IS NULL ORDER BY `servers`.`id` LIMIT 1
+--- PASS: TestActionHandlerNotFound (0.00s)
+=== RUN   TestDeleteUserNotFound
+
+2026/04/18 13:01:10 [31;1mC:/DR/Nextcloud/BUILD/dgsmgt/internal/api/handlers.go:610 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE `users`.`id` = "999" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+--- PASS: TestDeleteUserNotFound (0.00s)
+=== RUN   TestUnauthorizedAction
+--- PASS: TestUnauthorizedAction (0.01s)
+=== RUN   TestMetricsHandlerWS
+--- PASS: TestMetricsHandlerWS (0.01s)
+=== RUN   TestLogsHandlerWS
+--- PASS: TestLogsHandlerWS (0.01s)
+=== RUN   TestMetricsHandlerWS_WriteFail
+--- PASS: TestMetricsHandlerWS_WriteFail (0.01s)
+=== RUN   TestLogsHandlerWS_WriteFail
+--- PASS: TestLogsHandlerWS_WriteFail (0.01s)
+=== RUN   TestLogsHandlerWS_ReadFail
+--- PASS: TestLogsHandlerWS_ReadFail (0.03s)
+FAIL
+FAIL	dgsmgt/internal/api	3.260s
+FAIL

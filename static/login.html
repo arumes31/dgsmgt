@@ -9,133 +9,135 @@
     <link rel="stylesheet" href="/css/app.css">
     <style>
         .login-page {
-          position: fixed;
-          inset: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #050505;
-          overflow: hidden;
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #020617;
+            overflow: hidden;
         }
 
-        .login-bg {
-          position: absolute;
-          inset: 0;
-          z-index: 0;
-        }
-
-        .bg-blob {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          border-radius: 50%;
-          filter: blur(120px);
-          opacity: 0.2;
-          animation: float-bg 25s infinite alternate ease-in-out;
-        }
-
-        .blob-1 { background: #3b82f6; top: -150px; left: -150px; }
-        .blob-2 { background: #8b5cf6; bottom: -150px; right: -150px; animation-delay: -7s; }
-
-        @keyframes float-bg {
-          0% { transform: translate(0, 0) scale(1) rotate(0deg); }
-          100% { transform: translate(150px, 80px) scale(1.2) rotate(15deg); }
-        }
-
-        .login-card {
-          width: 100%;
-          max-width: 440px;
-          padding: 56px;
-          background: rgba(255, 255, 255, 0.02);
-          backdrop-filter: blur(32px);
-          -webkit-backdrop-filter: blur(32px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 40px;
-          box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-          position: relative;
-          z-index: 10;
-          margin: 20px;
-          transition: var(--trans-smooth);
-        }
-
-        .login-card:hover {
-            border-color: rgba(255, 255, 255, 0.12);
-            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-        }
-
-        .login-header { text-align: center; margin-bottom: 48px; }
-
-        .logo-box {
-          width: 80px;
-          height: 80px;
-          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-          border-radius: 24px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 28px;
-          box-shadow: 0 16px 32px -8px rgba(59, 130, 246, 0.5);
-          position: relative;
-        }
-
-        .logo-box::after {
-            content: '';
+        .login-bg-media {
             position: absolute;
-            inset: -4px;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-            border-radius: 26px;
-            z-index: -1;
-            opacity: 0.3;
-            filter: blur(8px);
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.4;
+            filter: blur(5px);
+            z-index: 0;
+        }
+
+        .login-mesh {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            background: radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.2) 0%, transparent 50%),
+                        radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.2) 0%, transparent 50%);
+        }
+
+        .login-card-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 440px;
+            margin: 24px;
+        }
+
+        .premium-card {
+            padding: 48px;
+            border-radius: var(--radius-lg);
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.8), 
+                        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            animation: scaleIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .logo-container {
+            background: var(--accent-gradient);
+            padding: 2px;
+            border-radius: 20px;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 32px;
+            box-shadow: 0 20px 40px -10px var(--accent-glow);
+        }
+
+        .logo-inner {
+            background: #0f172a;
+            width: 100%;
+            height: 100%;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
         .login-title {
-          font-size: 36px;
-          font-weight: 800;
-          margin: 0;
-          letter-spacing: -0.03em;
-          background: linear-gradient(to right, #ffffff, #94a3b8);
-          -webkit-background-clip: text;
-          background-clip: text;
-          -webkit-text-fill-color: transparent;
+            font-size: 32px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: var(--fg-secondary);
+            font-size: 15px;
+            margin-bottom: 40px;
+            font-weight: 500;
         }
     </style>
 </head>
 <body>
     <div class="login-page">
-        <div class="login-bg">
-            <div class="bg-blob blob-1"></div>
-            <div class="bg-blob blob-2"></div>
-        </div>
+        <!-- Local Premium Assets -->
+        <img src="/assets/bg.png" class="login-bg-media" alt="">
+        <div class="login-mesh"></div>
 
-        <div class="login-card reveal">
-            <div class="reveal-stagger">
-                <div class="login-header">
-                    <div class="logo-box">
-                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    </div>
-                    <h1 class="login-title">DGSMgt Portal</h1>
-                    <p style="color: #64748b; font-size: 15px; margin-top: 12px; font-weight: 500;">Secure access to your game services</p>
-                </div>
-
-                <form id="loginForm" style="display: flex; flex-direction: column; gap: 20px;">
-                    <div class="form-group">
-                        <label class="form-label" for="username">Username</label>
-                        <input type="text" id="username" class="form-input" placeholder="Your username" required autocomplete="username" style="border-radius: 14px;">
+        <div class="login-card-container">
+            <div class="premium-card">
+                <div class="reveal-stagger">
+                    <div class="logo-container">
+                        <div class="logo-inner">
+                            <img src="/assets/logo.png" class="logo-img" alt="DGSMgt Logo">
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="password">Password</label>
-                        <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password" style="border-radius: 14px;">
+                    <h1 class="login-title text-gradient">DGSMgt Portal</h1>
+                    <p class="login-subtitle">Secure Instance Management</p>
+
+                    <form id="loginForm" style="display: flex; flex-direction: column; gap: 24px;">
+                        <div class="form-group">
+                            <label class="form-label" for="username">Identity</label>
+                            <input type="text" id="username" class="form-input" placeholder="Enter username" required autocomplete="username">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="password">Security Key</label>
+                            <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+                        </div>
+
+                        <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 16px; margin-top: 8px;">
+                            <span>Authenticate</span>
+                        </button>
+                    </form>
+
+                    <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--glass-border); text-align: center;">
+                        <span class="text-muted" style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">
+                            DGSMgt Core v1.2 &bull; SSL Secured
+                        </span>
                     </div>
-
-                    <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 16px; margin-top: 8px; border-radius: 14px; font-weight: 700;">
-                        <span>Sign In</span>
-                    </button>
-                </form>
-
-                <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--glass-border); text-align: center; color: #475569; font-size: 13px; font-weight: 500;">
-                    Encrypted Connection &bull; DGSMgt v1.0
                 </div>
             </div>
         </div>
@@ -148,14 +150,17 @@
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
+            const btn = document.getElementById('submitBtn');
             DGSMgt.ui.setLoading('submitBtn', true, 'Authenticating...');
 
             try {
                 await DGSMgt.auth.login(username, password);
-                DGSMgt.ui.toast('Login successful!', 'success');
-                window.location.href = '/dashboard.html';
+                DGSMgt.ui.toast('Authentication successful', 'success');
+                setTimeout(() => {
+                    window.location.href = '/dashboard.html';
+                }, 800);
             } catch (err) {
-                DGSMgt.ui.toast(err.message, 'error');
+                DGSMgt.ui.toast(err.message || 'Access Denied', 'error');
                 DGSMgt.ui.setLoading('submitBtn', false);
             }
         });

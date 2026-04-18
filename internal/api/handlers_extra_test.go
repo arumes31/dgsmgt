@@ -134,21 +134,27 @@ func TestStripDockerHeader(t *testing.T) {
 	}
 }
 
-func TestCanAccess(t *testing.T) {
+func TestGetAccess(t *testing.T) {
 	db := setupTestDB(t)
 	api := &API{db: db}
 	
 	claims := &auth.Claims{UserID: 1, IsAdmin: false}
 	
-	if api.canAccess(claims, "nonexistent") {
-		t.Error("canAccess should be false for nonexistent server")
+	if _, _, status := api.getAccess(claims, "nonexistent"); status == http.StatusOK {
+		t.Error("getAccess should be false for nonexistent server")
 	}
 	
 	server := models.Server{Name: "test", ContainerID: "123456"}
 	db.Create(&server)
 	
-	if api.canAccess(claims, "123456") {
-		t.Error("canAccess should be false without assignment")
+	if _, _, status := api.getAccess(claims, "123456"); status == http.StatusOK {
+		t.Error("getAccess should be false without assignment")
+	}
+
+	// Success case
+	db.Create(&models.UserServer{UserID: 1, ServerID: server.ID, CanStart: true})
+	if _, _, status := api.getAccess(claims, "123456"); status != http.StatusOK {
+		t.Error("getAccess should be true with assignment")
 	}
 }
 
@@ -181,6 +187,7 @@ func TestHandlersErrorPathsExtra(t *testing.T) {
 
 	t.Run("StatusForbidden", func(t *testing.T) {
 		db := setupTestDB(t)
+		db.Create(&models.Server{Name: "test", ContainerID: "123"})
 		api := NewAPI(nil, db, "secret", nil, zap.NewNop())
 		req := httptest.NewRequest("GET", "/api/status/123", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "123"})
@@ -194,6 +201,7 @@ func TestHandlersErrorPathsExtra(t *testing.T) {
 
 	t.Run("ActionForbidden", func(t *testing.T) {
 		db := setupTestDB(t)
+		db.Create(&models.Server{Name: "test", ContainerID: "123"})
 		api := NewAPI(nil, db, "secret", nil, zap.NewNop())
 		req := httptest.NewRequest("POST", "/api/action/123/start", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "123", "action": "start"})
@@ -222,6 +230,7 @@ func TestHandlersErrorPathsExtra(t *testing.T) {
 
 	t.Run("MetricsForbidden", func(t *testing.T) {
 		db := setupTestDB(t)
+		db.Create(&models.Server{Name: "test", ContainerID: "123"})
 		api := NewAPI(nil, db, "secret", nil, zap.NewNop())
 		req := httptest.NewRequest("GET", "/api/metrics/123", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "123"})
@@ -235,6 +244,7 @@ func TestHandlersErrorPathsExtra(t *testing.T) {
 
 	t.Run("LogsForbidden", func(t *testing.T) {
 		db := setupTestDB(t)
+		db.Create(&models.Server{Name: "test", ContainerID: "123"})
 		api := NewAPI(nil, db, "secret", nil, zap.NewNop())
 		req := httptest.NewRequest("GET", "/api/logs/123", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "123"})
@@ -692,5 +702,117 @@ func TestActionHandlerFail(t *testing.T) {
 	api.ActionHandler(w, req.WithContext(ctx))
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("Expected 500, got %d", w.Code)
+	}
+}
+
+func TestHandlersSuccessPathsExtra(t *testing.T) {
+	adminClaims := &auth.Claims{UserID: 1, IsAdmin: true, Username: "admin"}
+
+	t.Run("StatusSuccess", func(t *testing.T) {
+		db := setupTestDB(t)
+		mockCli := &mockClient{}
+		svc := docker.NewServiceWithClient(mockCli)
+		api := NewAPI(svc, db, "secret", nil, zap.NewNop())
+		
+		server := models.Server{Name: "test", ContainerID: "123"}
+		db.Create(&server)
+		
+		req := httptest.NewRequest("GET", "/api/status/123", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": "123"})
+		ctx := context.WithValue(req.Context(), middleware.ClaimsKey, adminClaims)
+		w := httptest.NewRecorder()
+		api.StatusHandler(w, req.WithContext(ctx))
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("ActionSuccess", func(t *testing.T) {
+		db := setupTestDB(t)
+		mockCli := &mockClient{}
+		svc := docker.NewServiceWithClient(mockCli)
+		api := NewAPI(svc, db, "secret", nil, zap.NewNop())
+		
+		server := models.Server{Name: "test", ContainerID: "123"}
+		db.Create(&server)
+		
+		actions := []string{"start", "stop", "restart"}
+		for _, action := range actions {
+			req := httptest.NewRequest("POST", "/api/action/123/"+action, nil)
+			req = mux.SetURLVars(req, map[string]string{"id": "123", "action": action})
+			ctx := context.WithValue(req.Context(), middleware.ClaimsKey, adminClaims)
+			w := httptest.NewRecorder()
+			api.ActionHandler(w, req.WithContext(ctx))
+			if w.Code != http.StatusOK {
+				t.Errorf("Expected 200 for action %s, got %d", action, w.Code)
+			}
+		}
+	})
+}
+
+func TestMetricsHandlerWS(t *testing.T) {
+	db := setupTestDB(t)
+	mockCli := &mockClient{}
+	svc := docker.NewServiceWithClient(mockCli)
+	api := NewAPI(svc, db, "secret", nil, zap.NewNop())
+	
+	server := models.Server{Name: "test", ContainerID: "123"}
+	db.Create(&server)
+	db.Create(&models.UserServer{UserID: 1, ServerID: server.ID, CanStart: true})
+
+	r := mux.NewRouter()
+	r.HandleFunc("/api/metrics/{id}", api.MetricsHandler)
+	
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		ctx := context.WithValue(req.Context(), middleware.ClaimsKey, &auth.Claims{UserID: 1, IsAdmin: true})
+		r.ServeHTTP(w, req.WithContext(ctx))
+	}))
+	defer ts.Close()
+
+	url := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/metrics/123"
+	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer ws.Close()
+
+	_, _, err = ws.ReadMessage()
+	if err != nil {
+		t.Errorf("ReadMessage failed: %v", err)
+	}
+}
+
+func TestLogsHandlerWS(t *testing.T) {
+	db := setupTestDB(t)
+	mockCli := &mockClient{}
+	svc := docker.NewServiceWithClient(mockCli)
+	api := NewAPI(svc, db, "secret", nil, zap.NewNop())
+	
+	server := models.Server{Name: "test", ContainerID: "123"}
+	db.Create(&server)
+	db.Create(&models.UserServer{UserID: 1, ServerID: server.ID, CanViewLogs: true})
+
+	r := mux.NewRouter()
+	r.HandleFunc("/api/logs/{id}", api.LogsHandler)
+	
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		ctx := context.WithValue(req.Context(), middleware.ClaimsKey, &auth.Claims{UserID: 1, IsAdmin: true})
+		r.ServeHTTP(w, req.WithContext(ctx))
+	}))
+	defer ts.Close()
+
+	url := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/logs/123"
+	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer ws.Close()
+
+	_, message, err := ws.ReadMessage()
+	if err != nil {
+		t.Errorf("ReadMessage failed: %v", err)
+	}
+	if len(message) == 0 {
+		t.Errorf("Empty logs message")
 	}
 }

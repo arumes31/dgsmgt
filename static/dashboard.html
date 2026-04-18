@@ -3,92 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | DGSMgt</title>
+    <title>Infrastructure | DGSMgt</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .dashboard-page {
+            min-height: 100vh;
+            background: #020617;
+            position: relative;
+        }
+        
+        body { background: #020617; } /* Override default body gradient for dashboard */
+
+        .dashboard-mesh {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .server-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 32px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .sidebar-brand {
+            padding: 8px 12px;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sidebar-logo {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+
+        .sidebar-title {
+            font-size: 20px;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-card-premium {
+            padding: 32px;
+            border-radius: var(--radius-md);
+        }
+
+        .server-card-premium {
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .server-info h3 {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .server-id {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--fg-muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .metrics-badge {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .metric-label {
+            color: var(--fg-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            color: var(--fg-secondary);
+            font-family: var(--font-mono);
+        }
+    </style>
 </head>
-<body>
+<body class="dashboard-page">
+    <div class="dashboard-mesh"></div>
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    
     <div class="layout">
         <aside class="sidebar" id="sidebar">
-            <div style="font-weight: 800; font-size: 20px; margin-bottom: 24px; color: var(--accent); display: flex; justify-content: space-between; align-items: center;">
-                DGSMgt
+            <div class="sidebar-brand">
+                <img src="/assets/logo.png" class="sidebar-logo" alt="Logo">
+                <span class="sidebar-title">DGSMgt</span>
                 <button class="mobile-menu-btn" onclick="toggleSidebar()" style="border: none;" title="Close menu">
                     <svg width="20" height="20" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
                 </button>
             </div>
-            <nav style="display: flex; flex-direction: column; gap: 4px;">
-                <a href="/dashboard.html" class="active">
+            
+            <nav style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="/dashboard.html" class="active glass">
                     <svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-dashboard"></use></svg>
-                    Dashboard
+                    <span>Dashboard</span>
                 </a>
                 <a href="#" onclick="DGSMgt.ui.showChangePassword(); return false;">
                     <svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-shield"></use></svg>
-                    Security
+                    <span>Security</span>
                 </a>
                 <a href="/admin.html" id="adminLink" style="display: none;">
                     <svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-admin"></use></svg>
-                    Administration
+                    <span>Administration</span>
                 </a>
             </nav>
-            <div style="margin-top: auto;">
-                <div id="userDisplay" style="font-size: 13px; color: #64748b; margin-bottom: 12px; padding: 0 12px;"></div>
-                <button onclick="DGSMgt.auth.logout()" class="btn btn-outline" style="width: 100%;">Logout</button>
+
+            <div style="margin-top: auto; padding-top: 24px; border-top: 1px solid var(--glass-border);">
+                <div id="userDisplay" style="font-size: 12px; color: var(--fg-muted); margin-bottom: 16px; font-weight: 600; text-transform: uppercase; text-align: center;"></div>
+                <button onclick="DGSMgt.auth.logout()" class="btn btn-outline" style="width: 100%; border-radius: 12px;">
+                    <svg width="18" height="18"><use href="/icons.svg#icon-logout"></use></svg>
+                    <span>Sign Out</span>
+                </button>
             </div>
         </aside>
 
-        <main class="main-content reveal-stagger">
-            <div class="header">
-                <div style="display: flex; align-items: center; gap: 20px;">
+        <main class="main-content">
+            <div class="header" style="margin-bottom: 56px;">
+                <div style="display: flex; align-items: center; gap: 24px;">
                     <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Open menu">
                         <svg width="24" height="24" aria-hidden="true"><use href="/icons.svg#icon-menu"></use></svg>
                     </button>
                     <div>
-                        <h1>Infrastructure</h1>
-                        <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Monitor and manage your game services in real-time.</p>
+                        <h1 class="text-gradient" style="font-size: 40px;">Infrastructure</h1>
+                        <p class="text-secondary" style="font-weight: 500;">Real-time management of your high-performance game instances.</p>
                     </div>
                 </div>
-                <div style="position: relative;">
-                    <svg width="18" height="18" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none;" aria-hidden="true"><use href="/icons.svg#icon-search"></use></svg>
-                    <input type="text" id="serverSearch" class="search-box" style="padding-left: 48px;" placeholder="Search instances..." oninput="filterServers()">
+                
+                <div style="display: flex; gap: 16px; align-items: center;">
+                    <button class="btn btn-outline btn-icon glass" id="manualRefresh" onclick="loadDashboard()" title="Synchronize Data">
+                        <svg width="20" height="20" aria-hidden="true"><use href="/icons.svg#icon-refresh"></use></svg>
+                    </button>
+                    <div style="position: relative; width: 320px;">
+                        <svg width="18" height="18" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--fg-muted); pointer-events: none;" aria-hidden="true"><use href="/icons.svg#icon-search"></use></svg>
+                        <input type="text" id="serverSearch" class="form-input glass" style="padding-left: 48px;" placeholder="Search environments..." oninput="filterServers()">
+                    </div>
                 </div>
             </div>
 
-            <div class="stats-summary">
-                <div class="stat-card glass-card shimmer">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span class="stat-label">Total Instances</span>
-                        <div style="width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
-                            <svg width="18" height="18"><use href="/icons.svg#icon-dashboard"></use></svg>
-                        </div>
+            <div class="stats-summary" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-bottom: 56px;">
+                <div class="stat-card-premium glass">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="text-muted" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px;">Total Allocated</span>
+                        <div style="color: var(--accent);"><svg width="20" height="20"><use href="/icons.svg#icon-dashboard"></use></svg></div>
                     </div>
-                    <span id="stat-total" class="stat-value">0</span>
+                    <div id="stat-total" style="font-size: 36px; font-weight: 800;">0</div>
                 </div>
-                <div class="stat-card glass-card shimmer">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span class="stat-label">Active Now</span>
-                        <div style="width: 32px; height: 32px; background: rgba(16, 185, 129, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--success);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                        </div>
+                <div class="stat-card-premium glass">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="text-muted" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px;">Active Deployment</span>
+                        <div style="color: var(--success);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
                     </div>
-                    <span id="stat-running" class="stat-value" style="color: var(--success);">0</span>
+                    <div id="stat-running" style="font-size: 36px; font-weight: 800; color: var(--success);">0</div>
                 </div>
-                <div class="stat-card glass-card shimmer">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span class="stat-label">Offline</span>
-                        <div style="width: 32px; height: 32px; background: rgba(239, 68, 68, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--danger);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
-                        </div>
+                <div class="stat-card-premium glass">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="text-muted" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px;">Terminated / Offline</span>
+                        <div style="color: var(--danger);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg></div>
                     </div>
-                    <span id="stat-offline" class="stat-value" style="color: var(--danger);">0</span>
+                    <div id="stat-offline" style="font-size: 36px; font-weight: 800; color: var(--danger);">0</div>
                 </div>
             </div>
 
             <div id="serverGrid" class="server-grid reveal-stagger">
-                <div style="grid-column: 1/-1; text-align: center; padding: 100px; color: #64748b;">
+                <div style="grid-column: 1/-1; text-align: center; padding: 120px 0;">
                     <div class="spinner" style="width: 48px; height: 48px; border-width: 3px; margin-bottom: 24px;"></div>
-                    <div style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Hydrating Infrastructure...</div>
+                    <div style="font-size: 18px; font-weight: 600; color: var(--fg-secondary);">Hydrating Infrastructure Topology...</div>
                 </div>
             </div>
         </main>
@@ -103,7 +220,16 @@
         let ramData = [];
         const maxDataPoints = 30;
 
+        function toggleSidebar() {
+            const s = document.getElementById('sidebar');
+            const o = document.getElementById('sidebarOverlay');
+            s.classList.toggle('open');
+            o.classList.toggle('show');
+        }
+
         async function loadDashboard() {
+            const btn = document.getElementById('manualRefresh');
+            if (btn) btn.classList.add('spin-anim');
             try {
                 const [me, servers] = await Promise.all([
                     DGSMgt.api.get('/api/me'),
@@ -111,74 +237,80 @@
                 ]);
 
                 if (me) {
-                    document.getElementById('userDisplay').textContent = `User: ${me.username}`;
+                    document.getElementById('userDisplay').textContent = me.username;
                     if (me.is_admin) document.getElementById('adminLink').style.display = 'flex';
                 }
 
                 allServers = servers || [];
                 updateStats(allServers);
                 filterServers();
-            } catch (err) { DGSMgt.ui.toast('Error connecting to backend', 'error'); }
+            } catch (err) { DGSMgt.ui.toast('Core link failure', 'error'); }
+            finally {
+                if (btn) setTimeout(() => btn.classList.remove('spin-anim'), 500);
+            }
         }
 
         function updateStats(servers) {
             const running = servers.filter(s => s.status.toLowerCase().includes('up')).length;
             document.getElementById('stat-total').textContent = servers.length;
             document.getElementById('stat-running').textContent = running;
-            document.getElementById('stat-offline').textContent = servers.length - running;
+            document.getElementById('stat-offline').textContent = Math.max(0, servers.length - running);
         }
 
         function renderServers(servers) {
             const grid = document.getElementById('serverGrid');
             if (servers.length === 0) {
-                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:#64748b; background:rgba(255,255,255,0.02); border-radius:20px; border:1px dashed #333;">No servers found matching your search.</div>';
+                grid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 80px; border: 1px dashed var(--glass-border); border-radius: var(--radius-md); background: rgba(255,255,255,0.02);">
+                        <div class="text-muted" style="font-weight: 500;">No active environments found matching your query.</div>
+                    </div>
+                `;
                 return;
             }
             grid.innerHTML = servers.map((s, index) => {
                 const isRunning = s.status.toLowerCase().includes('up');
                 const statusClass = isRunning ? 'status-online' : 'status-offline';
-                const statusLabel = isRunning ? 'Online' : 'Offline';
+                const statusLabel = isRunning ? 'Operational' : 'Terminated';
                 
                 return `
-                <div class="glass-card reveal" style="padding: 24px; display: flex; flex-direction: column; gap: 20px; animation-delay: ${index * 0.1}s;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div>
-                            <h3 style="margin:0; font-size:20px; font-weight:700; color:white; letter-spacing: -0.02em;">${s.name}</h3>
-                            <div style="font-size:12px; color:#64748b; font-family:var(--font-mono); margin-top:4px; letter-spacing:0.05em; opacity: 0.8;">${s.id.substring(0,12)}</div>
+                <div class="glass glass-card server-card-premium reveal" style="animation-delay: ${index * 0.1}s;">
+                    <div class="server-header">
+                        <div class="server-info">
+                            <h3 class="text-gradient">${s.name}</h3>
+                            <div class="server-id">${s.id.substring(0,16)}</div>
                         </div>
-                        <div class="status-pulse ${statusClass}">
-                            <div class="status-indicator"></div>
-                            ${statusLabel}
+                        <div class="status-indicator ${statusClass}">
+                            <div class="status-dot"></div>
+                            <span>${statusLabel}</span>
                         </div>
                     </div>
                     
-                    <div style="background:rgba(0,0,0,0.2); border-radius:20px; padding:16px; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; gap:12px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;">Engine</span>
-                            <span style="font-family:var(--font-mono); color:#94a3b8; font-size:12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.image}</span>
+                    <div class="metrics-badge">
+                        <div class="metric-row">
+                            <span class="metric-label">Engine</span>
+                            <span class="metric-value" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.image}</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;">Uptime</span>
-                            <span style="color:#94a3b8; font-size:12px;">${s.uptime || '---'}</span>
+                        <div class="metric-row">
+                            <span class="metric-label">Uptime</span>
+                            <span class="metric-value">${s.uptime || '---'}</span>
                         </div>
                     </div>
 
-                    <div style="display:flex; gap:10px; margin-top: auto;">
+                    <div style="display:flex; gap:12px; margin-top: auto;">
                         ${isRunning 
-                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger" style="flex:1; border-radius: 12px; font-weight: 700;">Stop</button>`
-                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary" style="flex:1; border-radius: 12px; font-weight: 700;">Start</button>`
+                            ? `<button onclick="handleAction('${s.id}', 'stop', this)" class="btn btn-danger" style="flex:1;" title="Power off container">Terminate</button>`
+                            : `<button onclick="handleAction('${s.id}', 'start', this)" class="btn btn-primary" style="flex:1;" title="Start container service">Deploy</button>`
                         }
                         <div style="display:flex; gap:8px;">
-                            <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-icon" title="Restart" style="border-radius: 12px;"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-                            <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Logs" style="border-radius: 12px;"><svg width="18" height="18"><use href="/icons.svg#icon-logs"></use></svg></button>
-                            ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="View Metrics" style="border-radius: 12px;"><svg width="18" height="18"><use href="/icons.svg#icon-terminal"></use></svg></button>` : ''}
+                            <button onclick="handleAction('${s.id}', 'restart', this)" class="btn btn-outline btn-icon" title="Reboot System"><svg width="18" height="18"><use href="/icons.svg#icon-refresh"></use></svg></button>
+                            <button onclick="openConsole('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="Terminal Stream"><svg width="18" height="18"><use href="/icons.svg#icon-logs"></use></svg></button>
+                            ${isRunning ? `<button onclick="openMetrics('${s.id}', '${s.name}')" class="btn btn-outline btn-icon" title="Telemetry Sensors"><svg width="18" height="18"><use href="/icons.svg#icon-terminal"></use></svg></button>` : ''}
                         </div>
                     </div>
                 </div>`;
             }).join('');
-            DGSMgt.ui.initTooltips();
+            if (typeof DGSMgt.ui.initTooltips === 'function') DGSMgt.ui.initTooltips();
         }
-
 
         const debouncedFilterServers = DGSMgt.ui.debounce(() => {
             const query = document.getElementById('serverSearch').value.toLowerCase();
@@ -195,17 +327,17 @@
                 btn.disabled = true; btn.innerHTML = '<span class="spinner" style="margin:0"></span>';
                 try {
                     await DGSMgt.api.post(`/api/action/${id}/${type}`, {});
-                    DGSMgt.ui.toast(`${type.charAt(0).toUpperCase() + type.slice(1)} command sent`, 'success');
-                    setTimeout(loadDashboard, 1000);
+                    DGSMgt.ui.toast(`Command ${type.toUpperCase()} executed successfully`, 'success');
+                    setTimeout(loadDashboard, 1200);
                 } catch (err) { DGSMgt.ui.toast(err.message, 'error'); btn.disabled = false; btn.innerHTML = old; }
             };
-            if (type === 'stop' || type === 'restart') DGSMgt.ui.confirm(`Are you sure you want to ${type} this server?`, exec);
+            if (type === 'stop' || type === 'restart') DGSMgt.ui.confirm(`Are you certain you wish to ${type} this production environment?`, exec);
             else exec();
         }
 
         const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
         function ansiToHtml(text) {
-            const colors = { 30:'black', 31:'#ef4444', 32:'#4ade80', 33:'#facc15', 34:'#60a5fa', 35:'#c084fc', 36:'#2dd4bf', 37:'white', 90:'gray' };
+            const colors = { 30:'black', 31:'#ef4444', 32:'#10b981', 33:'#f59e0b', 34:'#6366f1', 35:'#a855f7', 36:'#06b6d4', 37:'white', 90:'gray' };
             let html = text.replace(/</g, '&lt;').replace(/>/g, '&gt;'), spanOpen = false;
             html = html.replace(/\x1b\[([0-9;]*)[mG]/g, (m, codes) => {
                 if (codes === '0' || codes === '') { const res = spanOpen ? '</span>' : ''; spanOpen = false; return res; }
@@ -218,38 +350,73 @@
         }
 
         function openConsole(id, name) {
-            const body = `<div id="consoleOutput" class="console-output custom-scrollbar">Connecting to stream...</div>`;
-            const m = DGSMgt.ui.modal({ title: `Logs: ${name}`, body, maxWidth: '900px', onClose: () => { if(currentWs) currentWs.close(); } });
+            const body = `
+                <div style="display:flex; flex-direction:column; gap:20px; height:650px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="text-muted" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:0.1em;">Teleprinter Output: ${name}</span>
+                        <div style="display:flex; gap:12px;">
+                            <input type="text" id="logSearch" class="form-input" style="padding:6px 12px; font-size:12px; width:200px;" placeholder="Filter entries..." oninput="filterLogs()">
+                            <button class="btn btn-outline" onclick="clearLogs()" style="padding:6px 16px; font-size:11px; text-transform:uppercase;">Clear</button>
+                        </div>
+                    </div>
+                    <div id="consoleOutput" class="console-output glass" style="flex:1; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">Establishing secure tunnel...</div>
+                </div>
+            `;
+            const m = DGSMgt.ui.modal({ title: `System Stream: ${name}`, body, maxWidth: '1000px', onClose: () => { if(currentWs) currentWs.close(); } });
             const output = m.querySelector('#consoleOutput');
             if (currentWs) currentWs.close();
             
+            window.clearLogs = () => { output.innerHTML = ''; };
+            window.filterLogs = () => {
+                const q = document.getElementById('logSearch').value.toLowerCase();
+                Array.from(output.childNodes).forEach(node => {
+                    if (node.textContent.toLowerCase().includes(q)) node.style.display = 'block';
+                    else node.style.display = 'none';
+                });
+            };
+
             currentWs = DGSMgt.ws.connect(`/api/logs/${id}`, (e) => {
                 const d = document.createElement('div'); 
                 d.innerHTML = ansiToHtml(e.data);
                 output.appendChild(d); 
-                if (output.childNodes.length > 500) output.removeChild(output.firstChild);
+                if (output.childNodes.length > 800) output.removeChild(output.firstChild);
+                filterLogs();
                 output.scrollTop = output.scrollHeight;
             }, () => {
-                output.innerHTML += '<div style="color: #4ade80;">[Connected]</div>';
+                output.innerHTML = '<div style="color: var(--success); font-weight:700;">[CONNECTION SECURE]</div>';
             }, (e, intentional) => {
-                if (!intentional) output.innerHTML += '<div style="color: #facc15;">[Disconnected - Reconnecting...]</div>';
+                if (!intentional) output.innerHTML += '<div style="color: var(--warning);">[LINK DROPPED - RE-ESTABLISHING...]</div>';
             });
         }
 
         function openMetrics(id, name) {
             const body = `
-                <div style="display:flex; flex-direction:column; gap:20px;">
-                    <div><div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span class="stat-label">CPU Usage</span><span id="cpuText" style="color:#4ade80; font-family:monospace;">0.00%</span></div><div class="chart-container"><canvas id="cpuCanvas"></canvas></div></div>
-                    <div><div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span class="stat-label">RAM Usage</span><span id="ramText" style="color:#60a5fa; font-family:monospace;">0 MB / 0 MB</span></div><div class="chart-container"><canvas id="ramCanvas"></canvas></div></div>
+                <div style="display:flex; flex-direction:column; gap:32px;">
+                    <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                            <span class="text-muted" style="font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:0.1em;">CPU Core Load</span>
+                            <span id="cpuText" style="color:var(--success); font-family:var(--font-mono); font-weight:700;">0.00%</span>
+                        </div>
+                        <div class="chart-container glass"><canvas id="cpuCanvas"></canvas></div>
+                    </div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                            <span class="text-muted" style="font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:0.1em;">Memory Allocation</span>
+                            <span id="ramText" style="color:var(--accent-light); font-family:var(--font-mono); font-weight:700;">0 MB / 0 MB</span>
+                        </div>
+                        <div class="chart-container glass"><canvas id="ramCanvas"></canvas></div>
+                    </div>
                 </div>
             `;
-            const m = DGSMgt.ui.modal({ title: `Metrics: ${name}`, body, maxWidth: '700px', onClose: () => { if(metricsWs) metricsWs.close(); } });
+            const m = DGSMgt.ui.modal({ title: `Telemetry: ${name}`, body, maxWidth: '800px', onClose: () => { if(metricsWs) metricsWs.close(); } });
             cpuData = new Array(maxDataPoints).fill(0); ramData = new Array(maxDataPoints).fill(0);
             
             const draw = () => {
-                if(!document.getElementById('cpuCanvas')) return;
-                drawChart('cpuCanvas', cpuData, '#4ade80', 'rgba(74, 222, 128, 0.1)');
-                drawChart('ramCanvas', ramData, '#60a5fa', 'rgba(96, 165, 250, 0.1)');
+                const cc = document.getElementById('cpuCanvas');
+                const rc = document.getElementById('ramCanvas');
+                if(!cc || !rc) return;
+                drawChart('cpuCanvas', cpuData, '#10b981', 'rgba(16, 185, 129, 0.1)');
+                drawChart('ramCanvas', ramData, '#6366f1', 'rgba(99, 102, 241, 0.1)');
             };
 
             if (metricsWs) metricsWs.close();
@@ -264,15 +431,17 @@
                     const memL = stats.memory_stats.limit;
                     const memP = memL > 0 ? (memU / memL) * 100 : 0;
 
-                    document.getElementById('cpuText').textContent = `${cpuP.toFixed(2)}%`;
-                    document.getElementById('ramText').textContent = `${(memU/1024/1024).toFixed(1)} MB / ${(memL/1024/1024/1024).toFixed(1)} GB`;
+                    const ct = document.getElementById('cpuText');
+                    const rt = document.getElementById('ramText');
+                    if (ct) ct.textContent = `${cpuP.toFixed(2)}%`;
+                    if (rt) rt.textContent = `${(memU/1024/1024).toFixed(1)} MB / ${(memL/1024/1024/1024).toFixed(1)} GB`;
 
                     cpuData.push(Math.min(cpuP, 100)); cpuData.shift();
                     ramData.push(Math.min(memP, 100)); ramData.shift();
                     draw();
                 } catch(err) {}
             });
-            setTimeout(draw, 100);
+            setTimeout(draw, 200);
         }
 
         function drawChart(id, data, stroke, fill) {
@@ -280,16 +449,29 @@
             const r = c.parentElement.getBoundingClientRect();
             c.width = r.width * window.devicePixelRatio; c.height = r.height * window.devicePixelRatio;
             const ctx = c.getContext('2d'); ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-            const w = r.width, h = r.height, p = 5, cw = w - p*2, ch = h - p*2, step = cw / (maxDataPoints-1);
+            const w = r.width, h = r.height, p = 10, cw = w - p*2, ch = h - p*2, step = cw / (maxDataPoints-1);
             ctx.clearRect(0,0,w,h);
-            ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1;
+            
+            // Grid lines
+            ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.02)'; ctx.lineWidth = 1;
             for(let i=0; i<=4; i++) { const y = p + (ch/4)*i; ctx.moveTo(p,y); ctx.lineTo(w-p,y); } ctx.stroke();
-            ctx.beginPath(); ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+            
+            // Gradient fill
+            const grad = ctx.createLinearGradient(0, p, 0, h-p);
+            grad.addColorStop(0, fill);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+            // Path
+            ctx.beginPath(); ctx.strokeStyle = stroke; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
             data.forEach((v, i) => { const x = p + i*step, y = h - p - (v/100)*ch; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
-            ctx.stroke(); ctx.lineTo(w-p, h-p); ctx.lineTo(p, h-p); ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+            ctx.stroke(); 
+            
+            // Fill
+            ctx.lineTo(w-p, h-p); ctx.lineTo(p, h-p); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
         }
 
-        loadDashboard(); setInterval(loadDashboard, 30000);
+        // Initialize state
+        loadDashboard(); setInterval(loadDashboard, 45000);
     </script>
 </body>
 </html>

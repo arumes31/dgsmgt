@@ -327,9 +327,11 @@ func TestHandlers_Docker_Failures(t *testing.T) {
 	})
 
 	t.Run("MetricsHandler_StatsFail", func(t *testing.T) {
+		db := setupTestDB(t)
+		db.Create(&models.Server{Name: "test", ContainerID: "1"})
 		mc := &mockClient{statsErr: fmt.Errorf("stats error")}
 		svc := docker.NewServiceWithClient(mc)
-		api := NewAPI(svc, nil, "secret", nil, zap.NewNop())
+		api := NewAPI(svc, db, "secret", nil, zap.NewNop())
 		
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r = mux.SetURLVars(r, map[string]string{"id": "1"})
@@ -351,9 +353,11 @@ func TestHandlers_Docker_Failures(t *testing.T) {
 	})
 
 	t.Run("LogsHandler_LogsFail", func(t *testing.T) {
+		db := setupTestDB(t)
+		db.Create(&models.Server{Name: "test", ContainerID: "1"})
 		mc := &mockClient{logsErr: fmt.Errorf("logs error")}
 		svc := docker.NewServiceWithClient(mc)
-		api := NewAPI(svc, nil, "secret", nil, zap.NewNop())
+		api := NewAPI(svc, db, "secret", nil, zap.NewNop())
 		
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r = mux.SetURLVars(r, map[string]string{"id": "1"})
@@ -589,13 +593,16 @@ func TestHandlers_DeepCoverage(t *testing.T) {
 
 	t.Run("LogsHandler_Edge", func(t *testing.T) {
 		t.Run("UpgradeFail", func(t *testing.T) {
-			api := NewAPI(nil, nil, "secret", nil, zap.NewNop())
+			db := setupTestDB(t)
+			api := NewAPI(nil, db, "secret", nil, zap.NewNop())
 			req := httptest.NewRequest("GET", "/", nil)
 			req = req.WithContext(context.WithValue(req.Context(), middleware.ClaimsKey, adminClaims))
 			w := httptest.NewRecorder()
 			api.LogsHandler(w, req)
-			// Upgrader fails if not websocket
-			if w.Code != http.StatusBadRequest { t.Errorf("got %d", w.Code) }
+			// Upgrader fails if not websocket (or if server not found in DB)
+			if w.Code != http.StatusBadRequest && w.Code != http.StatusNotFound {
+				t.Errorf("got %d", w.Code)
+			}
 		})
 
 		t.Run("DockerLogsFail", func(t *testing.T) {
