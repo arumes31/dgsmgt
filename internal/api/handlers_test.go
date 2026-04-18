@@ -27,6 +27,14 @@ import (
 type mockClient struct {
 	inspectFunc func(ctx context.Context, containerID string) (types.ContainerJSON, error)
 	listFunc    func(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	startErr    error
+	stopErr     error
+	restartErr  error
+	logsErr     error
+	createErr   error
+	removeErr   error
+	pullErr     error
+	statsErr    error
 }
 
 func (m *mockClient) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
@@ -43,33 +51,38 @@ func (m *mockClient) ContainerInspect(ctx context.Context, containerID string) (
 }
 
 func (m *mockClient) ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error {
-	return nil
+	return m.startErr
 }
 func (m *mockClient) ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error {
-	return nil
+	return m.stopErr
 }
 func (m *mockClient) ContainerRestart(ctx context.Context, containerID string, options container.StopOptions) error {
-	return nil
+	return m.restartErr
 }
 func (m *mockClient) ContainerLogs(ctx context.Context, containerID string, options container.LogsOptions) (io.ReadCloser, error) {
+	if m.logsErr != nil { return nil, m.logsErr }
 	return io.NopCloser(strings.NewReader("log line")), nil
 }
 func (m *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error) {
+	if m.createErr != nil { return container.CreateResponse{}, m.createErr }
 	return container.CreateResponse{ID: "new-id"}, nil
 }
 func (m *mockClient) ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error {
-	return nil
+	return m.removeErr
 }
 func (m *mockClient) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, options)
 	}
+	if m.pullErr != nil { return nil, m.pullErr } // Reusing pullErr for general list fail if needed or just return empty
 	return []types.Container{}, nil
 }
 func (m *mockClient) ImagePull(ctx context.Context, ref string, options image.PullOptions) (io.ReadCloser, error) {
+	if m.pullErr != nil { return nil, m.pullErr }
 	return io.NopCloser(strings.NewReader("")), nil
 }
 func (m *mockClient) ContainerStats(ctx context.Context, containerID string, stream bool) (container.StatsResponseReader, error) {
+	if m.statsErr != nil { return container.StatsResponseReader{}, m.statsErr }
 	return container.StatsResponseReader{}, nil
 }
 

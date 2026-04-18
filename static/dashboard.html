@@ -40,32 +40,56 @@
 
         <main class="main-content">
             <div class="header">
-                <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="display: flex; align-items: center; gap: 20px;">
                     <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Open menu">
-                        <svg width="20" height="20" aria-hidden="true"><use href="/icons.svg#icon-menu"></use></svg>
+                        <svg width="24" height="24" aria-hidden="true"><use href="/icons.svg#icon-menu"></use></svg>
                     </button>
-                    <h1 style="margin: 0;">Server Overview</h1>
+                    <div>
+                        <h1 style="margin: 0; font-size: 32px; font-weight: 800;">Infrastructure</h1>
+                        <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Monitor and manage your game services in real-time.</p>
+                    </div>
                 </div>
-                <input type="text" id="serverSearch" class="search-box" placeholder="Search servers..." oninput="filterServers()">
+                <div style="position: relative;">
+                    <svg width="18" height="18" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none;" aria-hidden="true"><use href="/icons.svg#icon-search"></use></svg>
+                    <input type="text" id="serverSearch" class="search-box" style="padding-left: 48px;" placeholder="Search instances..." oninput="filterServers()">
+                </div>
             </div>
 
             <div class="stats-summary">
-                <div class="stat-card shimmer">
-                    <span class="stat-label">Total Servers</span>
+                <div class="stat-card glass-card shimmer">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="stat-label">Total Instances</span>
+                        <div style="width: 32px; height: 32px; background: rgba(255,255,255,0.05); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                            <svg width="18" height="18"><use href="/icons.svg#icon-dashboard"></use></svg>
+                        </div>
+                    </div>
                     <span id="stat-total" class="stat-value">0</span>
                 </div>
-                <div class="stat-card shimmer">
-                    <span class="stat-label">Running</span>
-                    <span id="stat-running" class="stat-value" style="color: #4ade80;">0</span>
+                <div class="stat-card glass-card shimmer">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="stat-label">Active Now</span>
+                        <div style="width: 32px; height: 32px; background: rgba(16, 185, 129, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--success);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        </div>
+                    </div>
+                    <span id="stat-running" class="stat-value" style="color: var(--success);">0</span>
                 </div>
-                <div class="stat-card shimmer">
-                    <span class="stat-label">Offline</span>
-                    <span id="stat-offline" class="stat-value" style="color: #f87171;">0</span>
+                <div class="stat-card glass-card shimmer">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="stat-label">Offline</span>
+                        <div style="width: 32px; height: 32px; background: rgba(239, 68, 68, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--danger);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+                        </div>
+                    </div>
+                    <span id="stat-offline" class="stat-value" style="color: var(--danger);">0</span>
                 </div>
             </div>
 
             <div id="serverGrid" class="server-grid">
-                <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #64748b;"><span class="spinner"></span> Loading your infrastructure...</div>
+                <div style="grid-column: 1/-1; text-align: center; padding: 100px; color: #64748b;">
+                    <div class="spinner" style="width: 40px; height: 40px; border-width: 3px; margin-bottom: 20px;"></div>
+                    <div style="font-size: 16px; font-weight: 500;">Initializing dashboard...</div>
+                </div>
             </div>
         </main>
     </div>

@@ -6,9 +6,13 @@ import (
 	"dgsmgt/internal/models"
 	"log"
 	"os"
+	"gorm.io/gorm"
 )
 
-var osExit = os.Exit
+var (
+	osExit   = os.Exit
+	database *gorm.DB
+)
 
 func main() {
 	if err := Run(); err != nil {
@@ -23,41 +27,38 @@ func Run() error {
 		dsn = "dgsmgt.db"
 	}
 
-	database, err := db.InitDB(dsn)
+	var err error
+	database, err = db.InitDB(dsn)
 	if err != nil {
 		return err
 	}
 
 	log.Println("Seeding database...")
+	seedUsers()
+	seedServers()
+	assignAccess()
 
-	// Create Users
+	log.Println("Seeding complete!")
+	return nil
+}
+
+func seedUsers() {
 	users := []models.User{
-		{
-			Username: "admin",
-			IsAdmin:  true,
-		},
-		{
-			Username: "user1",
-			IsAdmin:  false,
-		},
-		{
-			Username: "user2",
-			IsAdmin:  false,
-		},
+		{Username: "admin", IsAdmin: true},
+		{Username: "user1", IsAdmin: false},
+		{Username: "user2", IsAdmin: false},
 	}
 
 	for i := range users {
 		hashedPass, _ := auth.HashPassword("password123")
 		users[i].PasswordHash = hashedPass
-		
-		// Use FirstOrCreate to avoid duplicates
-		err := database.Where(models.User{Username: users[i].Username}).FirstOrCreate(&users[i]).Error
-		if err != nil {
+		if err := database.Where(models.User{Username: users[i].Username}).FirstOrCreate(&users[i]).Error; err != nil {
 			log.Printf("Failed to create user %s: %v", users[i].Username, err)
 		}
 	}
+}
 
-	// Create Servers
+func seedServers() {
 	servers := []models.Server{
 		{
 			Name:        "Soulmask Alpha",
@@ -80,30 +81,42 @@ func Run() error {
 	}
 
 	for i := range servers {
-		err := database.Where(models.Server{Name: servers[i].Name}).FirstOrCreate(&servers[i]).Error
-		if err != nil {
+		if err := database.Where(models.Server{Name: servers[i].Name}).FirstOrCreate(&servers[i]).Error; err != nil {
 			log.Printf("Failed to create server %s: %v", servers[i].Name, err)
 		}
 	}
+}
 
-	// Assign Servers to Users
-	// Assign all servers to admin
-	for _, server := range servers {
-		if err := database.Model(&users[0]).Association("Servers").Append(&server); err != nil {
-			log.Printf("Failed to assign server %s to admin: %v", server.Name, err)
+func assignAccess() {
+	var admin, u1, u2 models.User
+	database.Where("username = ?", "admin").First(&admin)
+	database.Where("username = ?", "user1").First(&u1)
+	database.Where("username = ?", "user2").First(&u2)
+
+	var s []models.Server
+	database.Find(&s)
+	if len(s) < 3 { return }
+
+	if admin.ID != 0 {
+		for _, server := range s {
+			err := database.Model(&admin).Association("Servers").Append(&server)
+			if err != nil {
+				log.Printf("Failed to assign server %s to admin: %v", server.Name, err)
+			}
 		}
 	}
 
-	// Assign first server to user1
-	if err := database.Model(&users[1]).Association("Servers").Append(&servers[0]); err != nil {
-		log.Printf("Failed to assign server to user1: %v", err)
+	if u1.ID != 0 {
+		err := database.Model(&u1).Association("Servers").Append(&s[0])
+		if err != nil {
+			log.Printf("Failed to assign server to user1: %v", err)
+		}
 	}
 
-	// Assign second and third server to user2
-	if err := database.Model(&users[2]).Association("Servers").Append(&servers[1], &servers[2]); err != nil {
-		log.Printf("Failed to assign servers to user2: %v", err)
+	if u2.ID != 0 {
+		err := database.Model(&u2).Association("Servers").Append(&s[1], &s[2])
+		if err != nil {
+			log.Printf("Failed to assign servers to user2: %v", err)
+		}
 	}
-
-	log.Println("Seeding complete!")
-	return nil
 }

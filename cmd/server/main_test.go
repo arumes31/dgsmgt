@@ -12,6 +12,7 @@ import (
 )
 
 func TestRun(t *testing.T) {
+	// Case 1: All env vars set
 	os.Setenv("DATABASE_URL", ":memory:")
 	os.Setenv("JWT_SECRET", "test_secret")
 	os.Setenv("TEST_MODE", "true")
@@ -32,11 +33,19 @@ func TestRun(t *testing.T) {
 	database, _ := db.InitDB(":memory:")
 	_ = database.AutoMigrate(&models.Server{})
 	database.Create(&models.Server{Name: "cron-server", ContainerID: "abc", CronSchedule: "* * * * *"})
+	database.Create(&models.Server{Name: "invalid-cron", ContainerID: "def", CronSchedule: "invalid"})
 	
 	err := Run()
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
+
+	// Case 2: Empty env vars (test defaults)
+	os.Unsetenv("JWT_SECRET")
+	os.Unsetenv("ADMIN_USER")
+	os.Unsetenv("ADMIN_PASSWORD")
+	os.Setenv("DATABASE_URL", ":memory:")
+	_ = Run()
 }
 
 func TestRunFailures(t *testing.T) {

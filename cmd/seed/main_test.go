@@ -18,6 +18,16 @@ func TestRunFailures(t *testing.T) {
 		defer os.Unsetenv("DATABASE_URL")
 		if err := Run(); err == nil { t.Error("expected error") }
 	})
+
+	t.Run("MigrateFail", func(t *testing.T) {
+		f, _ := os.CreateTemp("", "readonly*.db")
+		f.Close()
+		_ = os.Chmod(f.Name(), 0444)
+		defer os.Remove(f.Name())
+		os.Setenv("DATABASE_URL", f.Name())
+		defer os.Unsetenv("DATABASE_URL")
+		if err := Run(); err == nil { t.Error("expected error") }
+	})
 }
 
 func TestMainFunction(t *testing.T) {
@@ -35,7 +45,6 @@ func TestMainFunctionFail(t *testing.T) {
 	if os.Getenv("BE_MAIN_FAIL") == "1" {
 		os.Setenv("DATABASE_URL", "/invalid/path")
 		osExit = func(code int) { panic(code) }
-		defer func() { _ = recover() }()
 		main()
 		return
 	}

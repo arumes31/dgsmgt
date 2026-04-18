@@ -1,6 +1,6 @@
 mode: set
-dgsmgt/cmd/seed/main.go:13.13,14.30 1 1
-dgsmgt/cmd/seed/main.go:14.30,17.3 2 1
+dgsmgt/cmd/seed/main.go:13.13,14.30 1 0
+dgsmgt/cmd/seed/main.go:14.30,17.3 2 0
 dgsmgt/cmd/seed/main.go:20.18,22.15 2 1
 dgsmgt/cmd/seed/main.go:22.15,24.3 1 0
 dgsmgt/cmd/seed/main.go:26.2,27.16 2 1
