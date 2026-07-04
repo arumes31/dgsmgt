@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,10 @@ const (
 	typeExecCommand  = 2
 	typeAuthResponse = 2
 	typeResponse     = 0
+
+	execID          = 2
+	sentinelID      = 7
+	maxResponseSize = 1 << 20 // 1MB safety cap on assembled responses
 )
 
 // Send connects, authenticates and executes a single command, returning the
@@ -45,15 +50,40 @@ var Send = func(host string, port int, password, command string) (string, error)
 		}
 	}
 
-	// Execute
-	if err := writePacket(conn, 2, typeExecCommand, command); err != nil {
+	// Execute. Large responses are fragmented into multiple 4096-byte
+	// packets (Source games' "status", Rust, ...). The standard way to find
+	// the end is a sentinel: servers answer an extra RESPONSE_VALUE request
+	// after all fragments of the previous command, in order.
+	if err := writePacket(conn, execID, typeExecCommand, command); err != nil {
 		return "", fmt.Errorf("rcon exec write: %w", err)
 	}
-	_, _, body, err := readPacket(conn)
-	if err != nil {
-		return "", fmt.Errorf("rcon exec read: %w", err)
+	sentinelSent := writePacket(conn, sentinelID, typeResponse, "") == nil
+
+	var out bytes.Buffer
+	for {
+		id, ptype, body, err := readPacket(conn)
+		if err != nil {
+			// Servers that don't answer the sentinel (rare) still delivered
+			// the response; return what we have on timeout after data.
+			if out.Len() > 0 && !sentinelSent {
+				return out.String(), nil
+			}
+			return "", fmt.Errorf("rcon exec read: %w", err)
+		}
+		// Sentinel echo (or Minecraft's "Unknown request" reply) ends the response.
+		if id == sentinelID || strings.Contains(body, "Unknown request") {
+			return out.String(), nil
+		}
+		if id == execID && ptype == typeResponse {
+			out.WriteString(body)
+			if !sentinelSent {
+				return out.String(), nil
+			}
+		}
+		if out.Len() > maxResponseSize {
+			return out.String(), nil
+		}
 	}
-	return body, nil
 }
 
 func writePacket(conn net.Conn, id int32, ptype int32, body string) error {

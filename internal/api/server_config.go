@@ -12,6 +12,7 @@ type serverInput struct {
 	Ports           []string `json:"ports"`
 	Env             []string `json:"env"`
 	Volumes         []string `json:"volumes"`
+	Cmd             []string `json:"cmd"`
 	NodeID          uint     `json:"node_id"`
 	Folder          string   `json:"folder" validate:"omitempty,max=64"`
 	Icon            string   `json:"icon" validate:"omitempty,max=32"`
@@ -44,6 +45,7 @@ type containerConfig struct {
 	Ports   []string `json:"ports"`
 	Env     []string `json:"env"`
 	Volumes []string `json:"volumes"`
+	Cmd     []string `json:"cmd,omitempty"`
 }
 
 func (a *API) createOptsFor(s *models.Server) docker.CreateOpts {
@@ -55,6 +57,7 @@ func (a *API) createOptsFor(s *models.Server) docker.CreateOpts {
 		Ports:         cc.Ports,
 		Env:           cc.Env,
 		Volumes:       cc.Volumes,
+		Cmd:           cc.Cmd,
 		RestartPolicy: s.RestartPolicy,
 		CPULimit:      s.CPULimit,
 		MemoryLimitMB: s.MemoryLimitMB,
@@ -65,7 +68,7 @@ func (a *API) createOptsFor(s *models.Server) docker.CreateOpts {
 }
 
 func applyInput(s *models.Server, in *serverInput) {
-	cc := containerConfig{Ports: in.Ports, Env: in.Env, Volumes: in.Volumes}
+	cc := containerConfig{Ports: in.Ports, Env: in.Env, Volumes: in.Volumes, Cmd: in.Cmd}
 	b, _ := json.Marshal(cc)
 	s.Name = in.Name
 	s.Image = in.Image

@@ -14,7 +14,8 @@ A modern, lightweight game server management panel built with Go and plain HTML/
 - Health checks (Docker healthcheck surfaced), crash detection with **auto-restart + backoff** and crash-loop protection, OOM-kill badges.
 
 ### Console & logs
-- **Interactive console** (attach/stdin or **Source RCON**) with command history, saved snippets and permission gating.
+- **Interactive console** (attach/stdin or **Source RCON**, incl. multi-packet responses) with command history, saved snippets and permission gating.
+- **Zero-config RCON**: Minecraft, Palworld and Rust templates deploy with the RCON port published and a generated password wired in — console commands work immediately.
 - Live logs with stdout/stderr distinction, ANSI colors, regex filter & highlighting, tail selection, timestamps, pause-autoscroll, fullscreen, download, optional **log persistence** to disk.
 - **Log alerts**: regex patterns that trigger notifications.
 

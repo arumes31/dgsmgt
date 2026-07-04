@@ -22,6 +22,10 @@ services:
       dockerfile: Dockerfile
     container_name: dgsmgt
     restart: always
+    # Lets the panel reach published game ports (auto-configured RCON) on
+    # Linux hosts; Docker Desktop provides this alias natively.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

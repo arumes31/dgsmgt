@@ -1,16 +1,33 @@
 package api
 
 import (
+	"dgsmgt/internal/auth"
 	"dgsmgt/internal/models"
 	"dgsmgt/internal/utils"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// rconHostFor returns the address the panel uses to reach a published RCON
+// port: the Docker host for local deployments (host-gateway alias, see
+// docker-compose.yml), or the remote node's hostname.
+func (a *API) rconHostFor(nodeID uint) string {
+	if nodeID != 0 {
+		var n models.Node
+		if err := a.db.First(&n, nodeID).Error; err == nil {
+			if u, err := url.Parse(n.Address); err == nil && u.Hostname() != "" {
+				return u.Hostname()
+			}
+		}
+	}
+	return "host.docker.internal"
+}
 
 // GameTemplate describes a one-click deployable game server. Container ports
 // are given as "port/proto"; host ports are auto-allocated from the range in
@@ -26,7 +43,9 @@ type GameTemplate struct {
 	Ports       []string `json:"ports"`       // container ports "25565/tcp"
 	FixedPorts  bool     `json:"fixed_ports"` // host port must equal container port (game protocol requirement)
 	Env         []string `json:"env"`
-	Volumes     []string `json:"volumes"` // container paths
+	Cmd         []string `json:"cmd"`       // image CMD override (launch flags)
+	RconPort    string   `json:"rcon_port"` // container RCON port "25575/tcp": auto-published, password generated ({RCONPW} in Env), console preset to rcon
+	Volumes     []string `json:"volumes"`   // container paths
 	StopTimeout int      `json:"stop_timeout"`
 	StopSignal  string   `json:"stop_signal"`
 	Icon        string   `json:"icon"`
@@ -40,9 +59,10 @@ var builtinTemplates = []GameTemplate{
 	// ---- Survival, Crafting & Sandbox ----
 	{ID: "minecraft-java", Name: "Minecraft (Java)", Category: "Survival & Sandbox",
 		Image: "itzg/minecraft-server:latest", Ports: []string{"25565/tcp"},
-		Env: []string{"EULA=TRUE", "MEMORY=4G", "TYPE=VANILLA"}, Volumes: []string{"/data"},
+		Env:      []string{"EULA=TRUE", "MEMORY=4G", "TYPE=VANILLA", "RCON_PASSWORD={RCONPW}"},
+		RconPort: "25575/tcp", Volumes: []string{"/data"},
 		StopTimeout: 60, Icon: "minecraft",
-		Notes: "Gold standard image. Set TYPE=PAPER/FORGE/FABRIC and VERSION for modded servers."},
+		Notes: "Gold standard image. RCON console preconfigured. Set TYPE=PAPER/FORGE/FABRIC and VERSION for modded servers."},
 	{ID: "minecraft-bedrock", Name: "Minecraft (Bedrock)", Category: "Survival & Sandbox",
 		Image: "itzg/minecraft-bedrock-server:latest", Ports: []string{"19132/udp"},
 		Env: []string{"EULA=TRUE"}, Volumes: []string{"/data"}, StopTimeout: 60, Icon: "minecraft"},
@@ -59,21 +79,30 @@ var builtinTemplates = []GameTemplate{
 		Env: []string{"ASA_START_PARAMS=TheIsland_WP?listen?Port=7777"}, Volumes: []string{"/home/gameserver/server-files"},
 		StopTimeout: 120, Icon: "ark"},
 	{ID: "rust", Name: "Rust", Category: "Survival & Sandbox",
-		Image: "didstopia/rust-server:latest", Ports: []string{"28015/udp", "28016/tcp"}, FixedPorts: true,
-		Env:     []string{"RUST_SERVER_NAME=DGSMgt Rust", "RUST_SERVER_WORLDSIZE=3500", "RUST_RCON_PASSWORD=changeme"},
-		Volumes: []string{"/steamcmd/rust"}, StopTimeout: 120, Icon: "rust",
-		Notes: "RCON on 28016/tcp — set console mode RCON with the password from RUST_RCON_PASSWORD."},
+		Image: "didstopia/rust-server:latest", Ports: []string{"28015/udp"}, FixedPorts: true,
+		Env: []string{"RUST_SERVER_NAME=DGSMgt Rust", "RUST_SERVER_WORLDSIZE=3500",
+			"RUST_RCON_PASSWORD={RCONPW}", "RUST_RCON_WEB=0"},
+		RconPort: "28016/tcp", Volumes: []string{"/steamcmd/rust"}, StopTimeout: 120, Icon: "rust",
+		Notes: "RCON console preconfigured (legacy Source RCON on 28016). First boot downloads the game via SteamCMD — allow 10+ minutes."},
 	{ID: "palworld", Name: "Palworld", Category: "Survival & Sandbox",
 		Image: "thijsvanloef/palworld-server-docker:latest", Ports: []string{"8211/udp"},
-		Env: []string{"PORT={PORT0}", "PLAYERS=16", "COMMUNITY=false"}, Volumes: []string{"/palworld"},
-		StopTimeout: 60, Icon: "palworld"},
+		Env: []string{"PORT={PORT0}", "PLAYERS=16", "COMMUNITY=false",
+			"RCON_ENABLED=true", "RCON_PORT=25575", "ADMIN_PASSWORD={RCONPW}"},
+		RconPort: "25575/tcp", Volumes: []string{"/palworld"},
+		StopTimeout: 60, Icon: "palworld",
+		Notes: "RCON console preconfigured (try the 'Info' command)."},
 	{ID: "terraria-tshock", Name: "Terraria (TShock)", Category: "Survival & Sandbox",
 		Image: "ryshe/terraria:latest", Ports: []string{"7777/tcp"},
-		Env: []string{"WORLD_FILENAME=world.wld"}, Volumes: []string{"/root/.local/share/Terraria/Worlds"},
-		StopTimeout: 60, Icon: "terraria"},
+		Env: []string{"WORLD_FILENAME=world.wld"},
+		// The image requires launch flags: auto-create a medium world on first boot.
+		Cmd:         []string{"-world", "/root/.local/share/Terraria/Worlds/world.wld", "-autocreate", "2"},
+		Volumes:     []string{"/root/.local/share/Terraria/Worlds"},
+		StopTimeout: 60, Icon: "terraria",
+		Notes: "Auto-creates a medium world on first boot. TShock uses SQLite: the data volume must be on a native Linux filesystem (Windows drive shares under Docker Desktop are not supported)."},
 	{ID: "factorio", Name: "Factorio", Category: "Survival & Sandbox",
 		Image: "factoriotools/factorio:stable", Ports: []string{"34197/udp", "27015/tcp"},
-		Volumes: []string{"/factorio"}, StopTimeout: 60, Icon: "factorio"},
+		Volumes: []string{"/factorio"}, StopTimeout: 60, Icon: "factorio",
+		Notes: "RCON listens on the second port; the image generates the password into config/rconpw on first boot — read it via the file manager and set console mode to RCON."},
 	{ID: "satisfactory", Name: "Satisfactory", Category: "Survival & Sandbox",
 		Image: "wolveix/satisfactory-server:latest", Ports: []string{"7777/udp", "7777/tcp"}, FixedPorts: true,
 		Env: []string{"MAXPLAYERS=4"}, Volumes: []string{"/config"}, StopTimeout: 120, Icon: "satisfactory"},
@@ -86,7 +115,8 @@ var builtinTemplates = []GameTemplate{
 		StopTimeout: 120, Icon: "7dtd"},
 	{ID: "dst", Name: "Don't Starve Together", Category: "Survival & Sandbox",
 		Image: "jamesits/dst-server:latest", Ports: []string{"10999/udp"},
-		Volumes: []string{"/data"}, StopTimeout: 60, Icon: "dst"},
+		Volumes: []string{"/data"}, StopTimeout: 60, Icon: "dst",
+		Notes: "Requires a free Klei cluster token (accounts.klei.com): the server restarts until DoNotStarveTogether/Cluster_1/cluster_token.txt exists in the data volume — add it via the file manager."},
 	{ID: "vrising", Name: "V Rising", Category: "Survival & Sandbox",
 		Image: "trueosiris/vrising:latest", Ports: []string{"9876/udp", "9877/udp"}, FixedPorts: true,
 		Env: []string{"TZ=Europe/Vienna", "SERVERNAME=DGSMgt VRising"}, Volumes: []string{"/mnt/vrising/server", "/mnt/vrising/persistentdata"},
@@ -156,15 +186,17 @@ var builtinTemplates = []GameTemplate{
 	{ID: "assetto-corsa", Name: "Assetto Corsa (LinuxGSM)", Category: "Strategy & Simulation",
 		Image: "gameservermanagers/gameserver:ac", Ports: []string{"9600/udp", "9600/tcp", "8081/tcp"}, FixedPorts: true,
 		Volumes: []string{"/data"}, StopTimeout: 60, Icon: "assetto"},
-	{ID: "acc", Name: "Assetto Corsa Competizione (LinuxGSM)", Category: "Strategy & Simulation",
-		Image: "gameservermanagers/gameserver:acc", Ports: []string{"9231/udp", "9232/udp"}, FixedPorts: true,
-		Volumes: []string{"/data"}, StopTimeout: 60, Icon: "assetto"},
+	{ID: "acc", Name: "Assetto Corsa Competizione (Wine)", Category: "Strategy & Simulation",
+		Image: "grimsi/accserver:latest", Ports: []string{"9231/udp", "9232/tcp"}, FixedPorts: true,
+		Volumes: []string{"/opt/server"}, StopTimeout: 60, Icon: "assetto",
+		Notes: "The ACC dedicated server is Windows-only and Kunos does not allow redistribution: copy your own server files (accServer.exe + cfg/, from Steam) into the volume before starting."},
 	{ID: "openttd", Name: "OpenTTD", Category: "Strategy & Simulation",
 		Image: "bateau/openttd:latest", Ports: []string{"3979/tcp", "3979/udp"},
 		Volumes: []string{"/config"}, StopTimeout: 30, Icon: "openttd"},
-	{ID: "mindustry", Name: "Mindustry (LinuxGSM)", Category: "Strategy & Simulation",
-		Image: "gameservermanagers/gameserver:mind", Ports: []string{"6567/tcp", "6567/udp"},
-		Volumes: []string{"/data"}, StopTimeout: 30, Icon: "mindustry"},
+	{ID: "mindustry", Name: "Mindustry", Category: "Strategy & Simulation",
+		Image: "oldshensheep/mindustry-server:latest", Ports: []string{"6567/tcp", "6567/udp"},
+		Volumes: []string{"/opt/mindustry/config"}, StopTimeout: 30, Icon: "mindustry",
+		Notes: "Send 'host' in the console to start a map (the server idles until then)."},
 	{ID: "wesnoth", Name: "The Battle for Wesnoth (LinuxGSM)", Category: "Strategy & Simulation",
 		Image: "gameservermanagers/gameserver:wmc", Ports: []string{"15000/tcp"},
 		Volumes: []string{"/data"}, StopTimeout: 30, Icon: "wesnoth"},
@@ -338,14 +370,19 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Port allocation
+	// Port allocation (one extra slot when the template exposes RCON)
+	allPorts := tpl.Ports
+	if tpl.RconPort != "" {
+		allPorts = append(append([]string{}, tpl.Ports...), tpl.RconPort)
+	}
 	ports := []string{}
-	hostPorts, err := a.allocatePorts(r, input.NodeID, len(tpl.Ports))
+	hostPorts, err := a.allocatePorts(r, input.NodeID, len(allPorts))
 	if err != nil {
 		utils.BadRequest(w, err.Error())
 		return
 	}
-	for i, cp := range tpl.Ports {
+	assigned := map[string]int{} // container port -> host port
+	for i, cp := range allPorts {
 		parts := strings.SplitN(cp, "/", 2)
 		proto := "tcp"
 		if len(parts) == 2 {
@@ -357,18 +394,43 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 			if v, err := strconv.Atoi(parts[0]); err == nil {
 				hp = v
 			}
+		} else if prev, ok := assigned[parts[0]]; ok {
+			// Same game port over tcp+udp must share one host port: clients
+			// expect both protocols on the port the server advertises.
+			hp = prev
 		}
+		assigned[parts[0]] = hp
 		ports = append(ports, fmt.Sprintf("%d:%s/%s", hp, parts[0], proto))
 		hostPorts[i] = hp
 	}
 
-	// Env with {PORTn} substitution
+	// RCON preset: publish the port, generate a password and preconfigure
+	// the console so commands work out of the box.
+	rconHostPort := 0
+	rconPassword := ""
+	if tpl.RconPort != "" {
+		rconHostPort = hostPorts[len(hostPorts)-1]
+		tok, err := auth.RandomToken()
+		if err != nil {
+			a.internalError(w, r, err, "Failed to generate RCON password")
+			return
+		}
+		rconPassword = tok[:16]
+		hostPorts = hostPorts[:len(hostPorts)-1] // game ports only in the response
+	}
+
+	// Env with {PORTn} / {RCONPW} substitution
 	env := append([]string{}, tpl.Env...)
 	env = append(env, input.Env...)
 	for i, hp := range hostPorts {
 		token := fmt.Sprintf("{PORT%d}", i)
 		for j := range env {
 			env[j] = strings.ReplaceAll(env[j], token, strconv.Itoa(hp))
+		}
+	}
+	if rconPassword != "" {
+		for j := range env {
+			env[j] = strings.ReplaceAll(env[j], "{RCONPW}", rconPassword)
 		}
 	}
 
@@ -386,11 +448,17 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	in := serverInput{
-		Name: input.Name, Image: image, Ports: ports, Env: env, Volumes: volumes,
+		Name: input.Name, Image: image, Ports: ports, Env: env, Volumes: volumes, Cmd: tpl.Cmd,
 		NodeID: input.NodeID, Icon: tpl.Icon, Folder: tpl.Category,
 		StopTimeout: tpl.StopTimeout, StopSignal: tpl.StopSignal,
 		RestartPolicy: "unless-stopped", AutoRestart: true,
 		HealthCheckType: "docker",
+	}
+	if rconHostPort != 0 {
+		in.ConsoleMode = "rcon"
+		in.RconHost = a.rconHostFor(input.NodeID)
+		in.RconPort = rconHostPort
+		in.RconPassword = rconPassword
 	}
 	server := models.Server{}
 	applyInput(&server, &in)

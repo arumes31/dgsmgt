@@ -46,8 +46,9 @@ type CreateOpts struct {
 	Ports         []string
 	Env           []string
 	Volumes       []string
-	RestartPolicy string  // no|on-failure|unless-stopped|always
-	CPULimit      float64 // cores
+	Cmd           []string // override image CMD (e.g. game launch flags)
+	RestartPolicy string   // no|on-failure|unless-stopped|always
+	CPULimit      float64  // cores
 	MemoryLimitMB int64
 	NetworkMode   string
 	StopSignal    string

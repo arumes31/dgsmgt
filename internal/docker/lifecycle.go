@@ -88,6 +88,12 @@ func (s *Service) buildConfigs(o CreateOpts) (*container.Config, *container.Host
 		Env:          o.Env,
 		ExposedPorts: exposedPorts,
 		Labels:       labels,
+		// Keep stdin open (compose stdin_open) so the console's attach mode
+		// can write commands to games that read from stdin.
+		OpenStdin: true,
+	}
+	if len(o.Cmd) > 0 {
+		cfg.Cmd = o.Cmd
 	}
 	if o.StopSignal != "" {
 		cfg.StopSignal = o.StopSignal
