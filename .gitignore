@@ -44,3 +44,6 @@ soulmask-control
 vendor/
 temp/
 tmp/
+
+# Local AI/dev notes — not for GitHub
+CLAUDE.md
