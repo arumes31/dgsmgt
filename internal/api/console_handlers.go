@@ -62,6 +62,7 @@ func (a *API) ConsoleHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if !perms.CanSendCommands {
+				a.audit(r, claims, "console_command", auditOpts{Server: server, Details: "Permission denied", Success: false})
 				_ = ws.writeText([]byte(`{"stream":"stderr","data":"Permission denied: cannot send commands\n"}`))
 				continue
 			}

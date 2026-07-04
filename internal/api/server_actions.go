@@ -65,6 +65,7 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 
 	svc, ok := a.svcFor(w, server)
 	if !ok {
+		a.audit(r, claims, action, auditOpts{Server: server, Details: "Node offline", Success: false})
 		return
 	}
 	if err := a.runAction(r.Context(), svc, server, action); err != nil {

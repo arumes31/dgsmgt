@@ -65,7 +65,9 @@ func Run() error {
 	// never accepted outside dev mode: a one-time random password is
 	// generated and printed once instead.
 	var count int64
-	database.Model(&models.User{}).Count(&count)
+	if err := database.Model(&models.User{}).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to count users: %w", err)
+	}
 	if count == 0 {
 		adminPass := cfg.AdminPassword
 		generated := false
@@ -77,7 +79,10 @@ func Run() error {
 			adminPass = tok[:20]
 			generated = true
 		}
-		hashedPass, _ := auth.HashPassword(adminPass)
+		hashedPass, err := auth.HashPassword(adminPass)
+		if err != nil {
+			return fmt.Errorf("failed to hash admin password: %w", err)
+		}
 		user := models.User{
 			Username:           cfg.AdminUser,
 			PasswordHash:       hashedPass,
@@ -153,12 +158,14 @@ func Run() error {
 	// outstanding access tokens immediately.
 	apiRouter := r.PathPrefix("/api").Subrouter()
 	apiRouter.Use(middleware.AuthMiddleware(cfg.JWTSecret, func(c *auth.Claims) bool {
-		var tv int
-		if err := database.Model(&models.User{}).Where("id = ?", c.UserID).
-			Pluck("token_version", &tv).Error; err != nil {
+		// Take (not Pluck) so a deleted user yields ErrRecordNotFound
+		// instead of a zero value that could match a stale token.
+		var u models.User
+		if err := database.Select("token_version").Where("id = ?", c.UserID).
+			Take(&u).Error; err != nil {
 			return false
 		}
-		return tv == c.TokenVersion
+		return u.TokenVersion == c.TokenVersion
 	}))
 
 	// Profile & session

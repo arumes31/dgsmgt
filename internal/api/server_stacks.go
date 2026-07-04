@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 // ---- Stacks (multi-container deployments) ---------------------------------------
@@ -43,13 +44,15 @@ func (a *API) CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) DeleteStackHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	if err := a.db.Model(&models.Server{}).Where("stack_id = ?", id).Update("stack_id", 0).Error; err != nil {
-		a.internalError(w, r, err, "Failed to detach servers from stack")
-		return
-	}
 	// The stack's Docker network is intentionally kept: detached containers
 	// may still be attached to it; remove it manually once unused.
-	if err := a.db.Delete(&models.Stack{}, id).Error; err != nil {
+	err := a.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Server{}).Where("stack_id = ?", id).Update("stack_id", 0).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.Stack{}, id).Error
+	})
+	if err != nil {
 		a.internalError(w, r, err, "Failed to delete stack")
 		return
 	}
