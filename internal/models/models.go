@@ -294,7 +294,7 @@ func (NotificationPref) TableName() string { return "notification_prefs" }
 type PushSubscription struct {
 	gorm.Model
 	UserID   uint   `gorm:"index" json:"user_id"`
-	Endpoint string `gorm:"uniqueIndex:idx_push_endpoint,length:255" json:"endpoint"`
+	Endpoint string `gorm:"size:512;uniqueIndex:idx_push_endpoint" json:"endpoint"`
 	P256dh   string `json:"p256dh"`
 	Auth     string `json:"auth"`
 }

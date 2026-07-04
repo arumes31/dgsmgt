@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ---- Discord OAuth ---------------------------------------------------------------
@@ -193,27 +194,48 @@ func (a *API) AcceptInvitationHandler(w http.ResponseWriter, r *http.Request) {
 	if !a.decodeAndValidate(w, r, &input) {
 		return
 	}
-	var inv models.Invitation
-	if err := a.db.Where("token = ? AND used_by_id = 0", input.Token).First(&inv).Error; err != nil {
-		utils.Forbidden(w, "Invalid or used invitation")
-		return
-	}
-	if time.Now().After(inv.ExpiresAt) {
-		utils.Forbidden(w, "Invitation expired")
-		return
-	}
 	hash, err := auth.HashPassword(input.Password)
 	if err != nil {
 		a.internalError(w, r, err, "Error hashing password")
 		return
 	}
-	user := models.User{Username: input.Username, Email: input.Email, PasswordHash: hash, IsAdmin: inv.IsAdmin}
-	if err := a.db.Create(&user).Error; err != nil {
+
+	// Claim + user creation run in one transaction with a row lock so an
+	// invitation can never be redeemed twice concurrently.
+	var user models.User
+	errInvalid := errors.New("invalid")
+	errExpired := errors.New("expired")
+	errTaken := errors.New("taken")
+	txErr := a.db.Transaction(func(tx *gorm.DB) error {
+		var inv models.Invitation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token = ? AND used_by_id = 0", input.Token).First(&inv).Error; err != nil {
+			return errInvalid
+		}
+		if time.Now().After(inv.ExpiresAt) {
+			return errExpired
+		}
+		user = models.User{Username: input.Username, Email: input.Email, PasswordHash: hash, IsAdmin: inv.IsAdmin}
+		if err := tx.Create(&user).Error; err != nil {
+			return errTaken
+		}
+		now := time.Now()
+		return tx.Model(&inv).Updates(map[string]interface{}{"used_by_id": user.ID, "used_at": &now}).Error
+	})
+	switch {
+	case errors.Is(txErr, errInvalid):
+		utils.Forbidden(w, "Invalid or used invitation")
+		return
+	case errors.Is(txErr, errExpired):
+		utils.Forbidden(w, "Invitation expired")
+		return
+	case errors.Is(txErr, errTaken):
 		utils.BadRequest(w, "Username already taken")
 		return
+	case txErr != nil:
+		a.internalError(w, r, txErr, "Failed to accept invitation")
+		return
 	}
-	now := time.Now()
-	a.db.Model(&inv).Updates(map[string]interface{}{"used_by_id": user.ID, "used_at": &now})
 	a.audit(r, &auth.Claims{UserID: user.ID, Username: user.Username}, "accept_invitation",
 		auditOpts{Details: "Account created via invitation", Success: true})
 	utils.Created(w, map[string]string{"status": "ok"})

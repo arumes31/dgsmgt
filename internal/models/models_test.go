@@ -1,8 +1,9 @@
 package models
 
 import (
-	"gorm.io/gorm"
 	"testing"
+
+	"gorm.io/gorm"
 )
 
 func TestModels(t *testing.T) {

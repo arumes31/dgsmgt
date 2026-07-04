@@ -46,9 +46,13 @@ func Run() error {
 	}()
 
 	cfg := config.Load()
+	insecureDev := os.Getenv("INSECURE_DEV_MODE") == "true"
 	if cfg.JWTSecret == "" {
+		if !insecureDev {
+			return fmt.Errorf("JWT_SECRET is not set — set a strong secret, or set INSECURE_DEV_MODE=true for local development only")
+		}
 		cfg.JWTSecret = "default_secret_change_me"
-		logger.Warn("Using default JWT secret — set JWT_SECRET in production")
+		logger.Warn("INSECURE_DEV_MODE: using a default JWT secret — never use this in production")
 	}
 
 	// Initialize Database (Postgres)
@@ -57,22 +61,39 @@ func Run() error {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Seed root admin if no users exist
+	// Seed root admin if no users exist. The well-known "admin" default is
+	// never accepted outside dev mode: a one-time random password is
+	// generated and printed once instead.
 	var count int64
 	database.Model(&models.User{}).Count(&count)
 	if count == 0 {
-		hashedPass, _ := auth.HashPassword(cfg.AdminPassword)
+		adminPass := cfg.AdminPassword
+		generated := false
+		if adminPass == "admin" && !insecureDev {
+			tok, err := auth.RandomToken()
+			if err != nil {
+				return fmt.Errorf("failed to generate admin password: %w", err)
+			}
+			adminPass = tok[:20]
+			generated = true
+		}
+		hashedPass, _ := auth.HashPassword(adminPass)
 		user := models.User{
 			Username:           cfg.AdminUser,
 			PasswordHash:       hashedPass,
 			IsAdmin:            true,
 			IsRoot:             true,
-			MustChangePassword: cfg.AdminPassword == "admin",
+			MustChangePassword: generated || adminPass == "admin",
 		}
 		if err := database.Create(&user).Error; err != nil {
 			return fmt.Errorf("failed to create admin user: %w", err)
 		}
-		logger.Info("Created default superadmin user", zap.String("username", cfg.AdminUser))
+		if generated {
+			logger.Warn("ADMIN_PASSWORD was unset/default — generated a one-time password (change it after first login)",
+				zap.String("username", cfg.AdminUser), zap.String("password", adminPass))
+		} else {
+			logger.Info("Created default superadmin user", zap.String("username", cfg.AdminUser))
+		}
 	}
 
 	// Docker: local service + remote nodes
@@ -127,9 +148,18 @@ func Run() error {
 	r.HandleFunc("/api/oauth/discord/login", apiServer.DiscordLoginHandler).Methods("GET")
 	r.HandleFunc("/api/oauth/discord/callback", apiServer.DiscordCallbackHandler).Methods("GET")
 
-	// Authenticated API
+	// Authenticated API. The token-version check makes RevokeAllSessions
+	// (password change, admin disable, "sign out everywhere") kill
+	// outstanding access tokens immediately.
 	apiRouter := r.PathPrefix("/api").Subrouter()
-	apiRouter.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+	apiRouter.Use(middleware.AuthMiddleware(cfg.JWTSecret, func(c *auth.Claims) bool {
+		var tv int
+		if err := database.Model(&models.User{}).Where("id = ?", c.UserID).
+			Pluck("token_version", &tv).Error; err != nil {
+			return false
+		}
+		return tv == c.TokenVersion
+	}))
 
 	// Profile & session
 	apiRouter.HandleFunc("/me", apiServer.MeHandler).Methods("GET")
@@ -169,6 +199,10 @@ func Run() error {
 	apiRouter.HandleFunc("/metrics/{id}/availability", apiServer.AvailabilityHandler).Methods("GET")
 	apiRouter.HandleFunc("/disk/{id}", apiServer.DiskUsageHandler).Methods("GET")
 	apiRouter.HandleFunc("/activity/{id}", apiServer.ServerActivityHandler).Methods("GET")
+	// Config edit + redeploy are permission-checked in the handlers
+	// (CanEditConfig), so they live outside the admin-only subtree.
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}", apiServer.UpdateServerHandler).Methods("PUT")
+	apiRouter.HandleFunc("/servers/{id:[0-9]+}/redeploy", apiServer.RedeployHandler)
 
 	// Command snippets & log alerts
 	apiRouter.HandleFunc("/snippets/{id}", apiServer.ListSnippetsHandler).Methods("GET")

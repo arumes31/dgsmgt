@@ -29,9 +29,11 @@ async function refreshBase() {
 }
 
 function show(sec) {
+  const sections = { overview, servers: serversSec, users: usersSec, groups: groupsSec, access: accessSec, audit: auditSec, trash: trashSec, nodes: nodesSec, settings: settingsSec };
+  if (!sections[sec]) sec = 'overview'; // unknown/malformed hash → safe default
   location.hash = sec;
   document.querySelectorAll('[data-sec]').forEach(b => b.classList.toggle('btn-primary', b.dataset.sec === sec));
-  ({ overview, servers: serversSec, users: usersSec, groups: groupsSec, access: accessSec, audit: auditSec, trash: trashSec, nodes: nodesSec, settings: settingsSec })[sec]();
+  sections[sec]();
 }
 
 // ================= Overview =================

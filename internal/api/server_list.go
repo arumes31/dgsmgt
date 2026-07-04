@@ -100,7 +100,7 @@ func (a *API) StatusHandler(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, "Node offline")
 		return
 	}
-	info, err := svc.GetStatus(r.Context(), id)
+	info, err := svc.GetStatus(r.Context(), server.ContainerID)
 	if err != nil {
 		utils.JSON(w, http.StatusNotFound, map[string]string{"status": "not_found"}, "container not found", nil)
 		return

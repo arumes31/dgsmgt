@@ -6,8 +6,18 @@ set -eu
 MAX_LINES="${MAX_LINES:-500}"
 fail=0
 
-# shellcheck disable=SC2046
-for f in $(git ls-files 'internal/**/*.go' 'cmd/**/*.go' 'static/**/*.js' 'static/**/*.html' 'static/**/*.css'); do
+# Capture and validate the file list first: a git failure or empty result
+# must fail loudly instead of "passing" over nothing.
+files=$(git ls-files 'internal/**/*.go' 'cmd/**/*.go' 'static/**/*.js' 'static/**/*.html' 'static/**/*.css') || {
+    echo "FAIL: git ls-files failed"
+    exit 1
+}
+if [ -z "$files" ]; then
+    echo "FAIL: git ls-files returned no source files — wrong working directory?"
+    exit 1
+fi
+
+for f in $files; do
     case "$f" in
         legacy_tests/*) continue ;;
     esac

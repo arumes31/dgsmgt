@@ -296,8 +296,26 @@ func (m *Manager) applyRetention(server *models.Server) {
 	}
 }
 
-// DeleteBackup removes the record and the local file.
+// DeleteBackup removes the record, the local file and — for remote targets —
+// the uploaded object, so retention pruning cleans S3/SFTP too.
 func (m *Manager) DeleteBackup(b *models.Backup) {
+	switch b.Target {
+	case "s3":
+		if cli, err := m.s3Client(); err == nil {
+			if err := cli.RemoveObject(context.Background(), m.cfg.S3Bucket, b.FileName,
+				minio.RemoveObjectOptions{}); err != nil {
+				m.logger.Warn("failed to delete S3 backup object", zap.String("file", b.FileName), zap.Error(err))
+			}
+		}
+	case "sftp":
+		if cli, conn, err := m.sftpClient(); err == nil {
+			if err := cli.Remove(path.Join(m.cfg.SFTPPath, b.FileName)); err != nil {
+				m.logger.Warn("failed to delete SFTP backup file", zap.String("file", b.FileName), zap.Error(err))
+			}
+			_ = cli.Close()
+			_ = conn.Close()
+		}
+	}
 	_ = os.Remove(m.localPath(b.FileName))
 	m.db.Unscoped().Delete(b)
 }
@@ -335,10 +353,27 @@ func (m *Manager) sftpClient() (*sftp.Client, *ssh.Client, error) {
 	if m.cfg.SFTPHost == "" {
 		return nil, nil, fmt.Errorf("SFTP not configured (SFTP_HOST)")
 	}
+
+	// Host key verification is mandatory: pin via SFTP_HOST_KEY
+	// (authorized_keys format), or explicitly opt out.
+	var hostKeyCallback ssh.HostKeyCallback
+	switch {
+	case m.cfg.SFTPHostKey != "":
+		pub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(m.cfg.SFTPHostKey))
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid SFTP_HOST_KEY (expected authorized_keys format): %w", err)
+		}
+		hostKeyCallback = ssh.FixedHostKey(pub)
+	case m.cfg.SFTPInsecure:
+		hostKeyCallback = ssh.InsecureIgnoreHostKey() // #nosec G106 -- explicit opt-in via SFTP_INSECURE_SKIP_VERIFY
+	default:
+		return nil, nil, fmt.Errorf("SFTP host key verification required: set SFTP_HOST_KEY (get it via ssh-keyscan) or SFTP_INSECURE_SKIP_VERIFY=true")
+	}
+
 	sshCfg := &ssh.ClientConfig{
 		User:            m.cfg.SFTPUser,
 		Auth:            []ssh.AuthMethod{ssh.Password(m.cfg.SFTPPassword)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // #nosec G106 -- backup target on trusted network; pinning configurable later
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         10 * time.Second,
 	}
 	conn, err := ssh.Dial("tcp", m.cfg.SFTPHost+":"+m.cfg.SFTPPort, sshCfg)

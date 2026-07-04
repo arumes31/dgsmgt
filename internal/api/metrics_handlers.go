@@ -25,6 +25,11 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	svc, ok := a.svcFor(w, server)
+	if !ok {
+		return
+	}
+
 	conn, err := a.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		a.logger.Error("WebSocket upgrade failed", zap.Error(err))
@@ -32,7 +37,6 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	svc := mustSvc(a, server)
 	go drainWS(conn)
 
 	ticker := time.NewTicker(2 * time.Second)
@@ -42,7 +46,7 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			snap, err := svc.StatsOnce(r.Context(), id)
+			snap, err := svc.StatsOnce(r.Context(), server.ContainerID)
 			if err != nil {
 				_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"stats unavailable"}`))
 				return

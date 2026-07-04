@@ -104,8 +104,9 @@ async function openCustomWizard() {
     if (!ports.length) return;
     const res = await App.post('/api/admin/port-check', { ports, node_id: 0 }).catch(() => null);
     const el = dlg.querySelector('#cw-conflict');
-    if (res && Object.keys(res.conflicts).length) {
-      el.innerHTML = '⚠️ Port conflicts: ' + Object.entries(res.conflicts).map(([p, c]) => `<b>${p}</b> (used by ${esc(c)})`).join(', ');
+    const conflicts = res && typeof res.conflicts === 'object' && res.conflicts ? res.conflicts : {};
+    if (Object.keys(conflicts).length) {
+      el.innerHTML = '⚠️ Port conflicts: ' + Object.entries(conflicts).map(([p, c]) => `<b>${esc(p)}</b> (used by ${esc(c)})`).join(', ');
       el.style.color = 'var(--warning)';
     } else el.textContent = '';
   };
@@ -129,7 +130,7 @@ async function openOrphans() {
   const dlg = App.modal('Orphan detection', `
     <h4>Unmanaged containers on host</h4>
     ${(o.unmanaged_containers || []).map(c => `<div class="help-row"><span>${esc((c.names || []).join(', ') || c.id.slice(0, 12))} <span class="small">(${esc(c.image)}, ${esc(c.state)})</span></span>
-      <button class="btn btn-outline" style="padding:4px 12px" data-adopt="${c.id}" data-n="${esc((c.names[0] || '').replace('/', ''))}">Adopt</button></div>`).join('') || '<p class="small">None 🎉</p>'}
+      <button class="btn btn-outline" style="padding:4px 12px" data-adopt="${c.id}" data-n="${esc(((c.names || [])[0] || '').replace('/', ''))}">Adopt</button></div>`).join('') || '<p class="small">None 🎉</p>'}
     <h4 class="mt">DB servers with missing containers</h4>
     ${(o.missing_containers || []).map(s => `<div class="help-row"><span>${esc(s.name)}</span><span class="small">container gone — restore via Trash or redeploy</span></div>`).join('') || '<p class="small">None 🎉</p>'}`);
   dlg.querySelectorAll('[data-adopt]').forEach(n => n.onclick = async () => {
@@ -157,7 +158,9 @@ async function openStacks() {
     await App.post(`/api/admin/stacks/${n.dataset.id}/${n.dataset.sa}`).then(r => toast('Stack ' + n.dataset.sa + ' done', 'success')).catch(e => toast(e.message, 'error'));
   });
   dlg.querySelectorAll('[data-sd]').forEach(n => n.onclick = async () => {
-    await App.del(`/api/admin/stacks/${n.dataset.sd}`).then(() => { dlg.close(); dlg.remove(); openStacks(); });
+    await App.del(`/api/admin/stacks/${n.dataset.sd}`)
+      .then(() => { toast('Stack deleted', 'success'); dlg.close(); dlg.remove(); openStacks(); })
+      .catch(e => toast(e.message, 'error'));
   });
 }
 

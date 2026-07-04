@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"os"
+
 	"dgsmgt/internal/auth"
 	"dgsmgt/internal/db"
 	"dgsmgt/internal/models"
+
 	"gorm.io/gorm"
-	"log"
-	"os"
 )
 
 var (
@@ -22,9 +25,10 @@ func main() {
 }
 
 func Run() error {
+	// The runtime is Postgres-only — no SQLite fallback.
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "dgsmgt.db"
+		return fmt.Errorf("DATABASE_URL must be set to a PostgreSQL DSN (e.g. host=localhost user=dgsmgt password=... dbname=dgsmgt)")
 	}
 
 	var err error

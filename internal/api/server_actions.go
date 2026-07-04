@@ -63,7 +63,11 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.runAction(r.Context(), mustSvc(a, server), server, action); err != nil {
+	svc, ok := a.svcFor(w, server)
+	if !ok {
+		return
+	}
+	if err := a.runAction(r.Context(), svc, server, action); err != nil {
 		a.logger.Error("Docker action failed", zap.String("id", id), zap.String("action", action), zap.Error(err))
 		a.audit(r, claims, action, auditOpts{Server: server, Details: err.Error(), Success: false})
 		a.internalError(w, r, err, "Action failed")
@@ -74,12 +78,17 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, map[string]string{"status": "ok"})
 }
 
-func mustSvc(a *API, server *models.Server) *docker.Service {
+// svcFor resolves the Docker service for a server's node. Unlike a silent
+// local fallback, an unreachable node is reported to the caller so actions
+// can never run against the wrong Docker host.
+func (a *API) svcFor(w http.ResponseWriter, server *models.Server) (*docker.Service, bool) {
 	svc, err := a.dockerFor(server)
 	if err != nil {
-		return a.nodes.Local()
+		a.logger.Warn("node unreachable", zap.Uint("node", server.NodeID), zap.Error(err))
+		utils.JSON(w, http.StatusServiceUnavailable, nil, "Node offline: cannot reach this server's Docker host", nil)
+		return nil, false
 	}
-	return svc
+	return svc, true
 }
 
 // BulkActionHandler runs one action on many servers; "start" honors
@@ -120,7 +129,12 @@ func (a *API) BulkActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, server := range targets {
-		err := a.runAction(r.Context(), mustSvc(a, server), server, input.Action)
+		svc, err := a.dockerFor(server)
+		if err == nil {
+			err = a.runAction(r.Context(), svc, server, input.Action)
+		} else {
+			err = fmt.Errorf("node offline")
+		}
 		res := result{ServerID: server.ID, Name: server.Name, OK: err == nil}
 		if err != nil {
 			res.Error = err.Error()

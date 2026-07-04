@@ -128,29 +128,35 @@ func (s *Service) GetStatus(ctx context.Context, containerID string) (*Container
 	}
 
 	info := &ContainerInfo{
-		ID:        inspect.ID,
-		Names:     []string{inspect.Name},
-		Status:    inspect.State.Status,
-		State:     inspect.State.Status,
-		Image:     inspect.Config.Image,
-		StartedAt: inspect.State.StartedAt,
-		Ports:     ports,
-		Health:    HealthInfo{Status: "none"},
+		ID:           inspect.ID,
+		Names:        []string{inspect.Name},
+		Ports:        ports,
+		RestartCount: inspect.RestartCount,
+		Health:       HealthInfo{Status: "none"},
 	}
-	if inspect.State.Running {
-		info.Uptime = HumanizeUptime(inspect.State.StartedAt)
-	}
-	info.ExitCode = inspect.State.ExitCode
-	info.OOMKilled = inspect.State.OOMKilled
-	info.RestartCount = inspect.RestartCount
-	if inspect.State.Health != nil {
-		info.Health = HealthInfo{
-			Status:        strings.ToLower(inspect.State.Health.Status),
-			FailingStreak: inspect.State.Health.FailingStreak,
+	// Inspect responses can carry nil State/Config for containers in odd
+	// lifecycle states — guard every dereference.
+	if inspect.State != nil {
+		info.Status = inspect.State.Status
+		info.State = inspect.State.Status
+		info.StartedAt = inspect.State.StartedAt
+		info.ExitCode = inspect.State.ExitCode
+		info.OOMKilled = inspect.State.OOMKilled
+		if inspect.State.Running {
+			info.Uptime = HumanizeUptime(inspect.State.StartedAt)
+		}
+		if inspect.State.Health != nil {
+			info.Health = HealthInfo{
+				Status:        strings.ToLower(inspect.State.Health.Status),
+				FailingStreak: inspect.State.Health.FailingStreak,
+			}
 		}
 	}
-	if inspect.Config != nil && inspect.Config.Labels != nil {
-		info.Managed = inspect.Config.Labels[ManagedLabel] == "true"
+	if inspect.Config != nil {
+		info.Image = inspect.Config.Image
+		if inspect.Config.Labels != nil {
+			info.Managed = inspect.Config.Labels[ManagedLabel] == "true"
+		}
 	}
 	return info, nil
 }

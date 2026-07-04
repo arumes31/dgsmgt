@@ -33,8 +33,14 @@ type Monitor struct {
 
 	mu          sync.Mutex
 	crashCounts map[uint][]time.Time // serverID -> recent crash times
-	tailers     map[uint]context.CancelFunc
+	tailers     map[uint]*tailerHandle
 	alertLast   map[string]time.Time // serverID:pattern -> last alert
+}
+
+// tailerHandle identifies one tail goroutine so a slow-exiting tailer can
+// never remove or cancel its successor's registration.
+type tailerHandle struct {
+	cancel context.CancelFunc
 }
 
 func New(db *gorm.DB, nodes *docker.Manager, cfg *config.Config, logger *zap.Logger, notifier *notify.Notifier) *Monitor {
@@ -46,7 +52,7 @@ func New(db *gorm.DB, nodes *docker.Manager, cfg *config.Config, logger *zap.Log
 		logger:      logger,
 		notifier:    notifier,
 		crashCounts: make(map[uint][]time.Time),
-		tailers:     make(map[uint]context.CancelFunc),
+		tailers:     make(map[uint]*tailerHandle),
 		alertLast:   make(map[string]time.Time),
 	}
 }
@@ -166,6 +172,10 @@ func (m *Monitor) handleEvent(ctx context.Context, nodeID uint, msg events.Messa
 	if action != "die" && action != "start" && action != "oom" {
 		return
 	}
+	// Malformed events (short/empty actor IDs) must not crash the watcher.
+	if len(msg.Actor.ID) < 12 {
+		return
+	}
 
 	var server models.Server
 	if err := m.db.Where("container_id LIKE ? AND node_id = ?", msg.Actor.ID[:12]+"%", nodeID).
@@ -202,7 +212,9 @@ func (m *Monitor) handleEvent(ctx context.Context, nodeID uint, msg events.Messa
 			Body:  fmt.Sprintf("Container exited with code %s.", exitCode), Level: "error",
 		})
 		if server.AutoRestart {
-			m.maybeRestart(ctx, &server)
+			// Backoff sleeps must not block the node's event loop.
+			srv := server
+			go m.maybeRestart(ctx, &srv)
 		}
 	}
 }
@@ -279,9 +291,9 @@ func (m *Monitor) reconcileTailers(ctx context.Context) {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for id, cancel := range m.tailers {
+	for id, h := range m.tailers {
 		if _, ok := wanted[id]; !ok {
-			cancel()
+			h.cancel()
 			delete(m.tailers, id)
 		}
 	}
@@ -290,12 +302,25 @@ func (m *Monitor) reconcileTailers(ctx context.Context) {
 			continue
 		}
 		tctx, cancel := context.WithCancel(ctx)
-		m.tailers[id] = cancel
-		go m.tail(tctx, s)
+		h := &tailerHandle{cancel: cancel}
+		m.tailers[id] = h
+		go m.tail(tctx, s, h)
 	}
 }
 
-func (m *Monitor) tail(ctx context.Context, server models.Server) {
+func (m *Monitor) tail(ctx context.Context, server models.Server, h *tailerHandle) {
+	// Free the slot when the stream ends (container stopped/recreated) so
+	// the next reconcile pass can start a fresh tailer. Only our own
+	// registration is removed — never a successor's.
+	defer func() {
+		m.mu.Lock()
+		if m.tailers[server.ID] == h {
+			h.cancel()
+			delete(m.tailers, server.ID)
+		}
+		m.mu.Unlock()
+	}()
+
 	svc, err := m.nodes.For(server.NodeID)
 	if err != nil {
 		return
@@ -306,18 +331,36 @@ func (m *Monitor) tail(ctx context.Context, server models.Server) {
 	}
 	defer func() { _ = reader.Close() }()
 
+	const maxLogSize = 50 * 1024 * 1024
 	var logFile *os.File
+	var logSize int64
+	logPath := filepath.Join(m.cfg.LogPath, fmt.Sprintf("%s.log", server.Name))
 	if server.PersistLogs {
-		p := filepath.Join(m.cfg.LogPath, fmt.Sprintf("%s.log", server.Name))
-		logFile, _ = os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G304
+		logFile, _ = os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G304
 		if logFile != nil {
-			defer func() { _ = logFile.Close() }()
-			// naive rotation: cap at 50MB
-			if fi, err := logFile.Stat(); err == nil && fi.Size() > 50*1024*1024 {
-				_ = logFile.Close()
-				_ = os.Rename(p, p+".1")
-				logFile, _ = os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G304
+			if fi, err := logFile.Stat(); err == nil {
+				logSize = fi.Size()
 			}
+			defer func() { _ = logFile.Close() }()
+		}
+	}
+	// writeLog appends and rotates whenever the cap is crossed, so the
+	// 50MB limit holds during the long-lived stream, not just at open.
+	writeLog := func(data []byte) {
+		if logFile == nil {
+			return
+		}
+		if logSize > maxLogSize {
+			_ = logFile.Close()
+			_ = os.Rename(logPath, logPath+".1")
+			logFile, _ = os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G304
+			logSize = 0
+			if logFile == nil {
+				return
+			}
+		}
+		if n, err := logFile.Write(data); err == nil {
+			logSize += int64(n)
 		}
 	}
 
@@ -335,9 +378,7 @@ func (m *Monitor) tail(ctx context.Context, server models.Server) {
 		n, err := reader.Read(buf)
 		if n > 0 {
 			clean := stripHeaders(buf[:n])
-			if logFile != nil {
-				_, _ = logFile.Write(clean)
-			}
+			writeLog(clean)
 			line := string(clean)
 			for pat, re := range patterns {
 				if re.MatchString(line) {

@@ -69,7 +69,7 @@ func TestLoggingMiddleware(t *testing.T) {
 
 func TestAuthMiddleware(t *testing.T) {
 	secret := "test-secret"
-	mw := AuthMiddleware(secret)
+	mw := AuthMiddleware(secret, nil)
 
 	token, _ := auth.GenerateToken(&models.User{Username: "test"}, secret, time.Hour)
 

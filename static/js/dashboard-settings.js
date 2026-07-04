@@ -96,7 +96,8 @@ async function tabSettings(c) {
       health_check_type: s.health_check_type, health_check_port: s.health_check_port,
     };
     try {
-      const updated = await App.put(`/api/admin/servers/${s.ID}`, body);
+      // Non-admin route: authorization runs per-server (CanEditConfig).
+      const updated = await App.put(`/api/servers/${s.ID}`, body);
       Object.assign(current, updated);
       toast('Saved — container recreated if needed', 'success');
       refreshDetailHead();
@@ -106,7 +107,7 @@ async function tabSettings(c) {
   $('s-redeploy').onclick = () => {
     const dlg = App.modal('Redeploy: pulling latest image', `<div class="console" style="height:300px" id="rd-log"></div>`);
     const log = dlg.querySelector('#rd-log');
-    const sock = App.ws(`/api/admin/servers/${s.ID}/redeploy`);
+    const sock = App.ws(`/api/servers/${s.ID}/redeploy`);
     sock.onmessage = (e) => {
       try {
         const j = JSON.parse(e.data);

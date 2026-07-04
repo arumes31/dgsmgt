@@ -24,8 +24,8 @@ func (a *API) attemptKey(r *http.Request, username string) string {
 
 func (a *API) isLockedOut(key string) bool {
 	if val, ok := a.loginAttempts.Load(key); ok {
-		attempt := val.(*loginAttempt)
-		return attempt.Count >= maxLoginAttempts && time.Since(attempt.LastError) < lockoutWindow
+		count, last := val.(*loginAttempt).snapshot()
+		return count >= maxLoginAttempts && time.Since(last) < lockoutWindow
 	}
 	return false
 }
@@ -33,8 +33,10 @@ func (a *API) isLockedOut(key string) bool {
 func (a *API) recordFailure(key string) {
 	actual, _ := a.loginAttempts.LoadOrStore(key, &loginAttempt{})
 	attempt := actual.(*loginAttempt)
+	attempt.mu.Lock()
 	attempt.Count++
 	attempt.LastError = time.Now()
+	attempt.mu.Unlock()
 }
 
 // issueTokens creates the access + refresh token pair for a user.
@@ -253,10 +255,10 @@ func (a *API) ListLockoutsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []entry{}
 	a.loginAttempts.Range(func(k, v interface{}) bool {
-		att := v.(*loginAttempt)
+		count, last := v.(*loginAttempt).snapshot()
 		out = append(out, entry{
-			Key: k.(string), Count: att.Count, LastError: att.LastError,
-			Locked: att.Count >= maxLoginAttempts && time.Since(att.LastError) < lockoutWindow,
+			Key: k.(string), Count: count, LastError: last,
+			Locked: count >= maxLoginAttempts && time.Since(last) < lockoutWindow,
 		})
 		return true
 	})

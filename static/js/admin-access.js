@@ -103,7 +103,8 @@ async function accessSec() {
     };
   };
   $('ac-matrix').onclick = async () => {
-    const m = await App.get('/api/admin/permission-matrix');
+    const m = await App.get('/api/admin/permission-matrix').catch(e => { toast(e.message, 'error'); return null; });
+    if (!m) return;
     const byUser = {};
     m.forEach(c => { (byUser[c.user_id] = byUser[c.user_id] || []).push(c); });
     App.modal('Permission matrix (effective, incl. groups)', `<div class="table-wrap"><table class="data">

@@ -114,8 +114,9 @@ body {
   opacity: 0.5;
 }
 
+/* Always used together with .glass in markup; @extend is Sass-only and was
+   silently ignored here, so glass-card carries only its own additions. */
 .glass-card {
-  @extend .glass;
   border-radius: var(--radius-md);
   transition: var(--trans-smooth);
 }

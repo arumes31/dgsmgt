@@ -54,10 +54,11 @@ A modern, lightweight game server management panel built with Go and plain HTML/
 
 ```bash
 git clone https://github.com/arumes31/dgsmgt && cd dgsmgt
-docker compose up -d --build
+JWT_SECRET=$(openssl rand -hex 32) DB_PASSWORD=$(openssl rand -hex 16) ADMIN_PASSWORD=pick_one \
+  docker compose up -d --build
 ```
 
-Open `http://localhost:8080` — default credentials `admin` / `admin` (you'll be forced to change the password on first login).
+Compose fails fast if `JWT_SECRET`, `DB_PASSWORD` or `ADMIN_PASSWORD` are missing — there are no insecure defaults. Open `http://localhost:8080` and log in as `admin` with your `ADMIN_PASSWORD` (a forced password change applies to weak defaults; if the server ever starts without an admin password, it generates a one-time password and prints it in the logs).
 
 The bundled compose file starts PostgreSQL and the panel and mounts the Docker socket.
 
@@ -79,6 +80,8 @@ services:
     environment:
       - DATABASE_URL=host=postgres user=dgsmgt password=change_me dbname=dgsmgt sslmode=disable
       - JWT_SECRET=generate_a_long_random_secret
+      - ADMIN_PASSWORD=change_me_too
+      - BASE_URL=https://panel.example.com   # used for OAuth redirects, invite + reset links
       - SERVER_GAME_PORTRANGE=25000-30000
 volumes: { pg_data: {}, backups: {} }
 ```
@@ -99,6 +102,8 @@ volumes: { pg_data: {}, backups: {} }
 | `SMTP_HOST/PORT/USER/PASS/FROM` | – | Email (password reset + notifications) |
 | `S3_ENDPOINT/ACCESS_KEY/SECRET_KEY/BUCKET` | – | S3 backup target |
 | `SFTP_HOST/PORT/USER/PASSWORD/PATH` | – | SFTP backup target |
+| `SFTP_HOST_KEY` | – | SFTP server public key (`ssh-keyscan -t ed25519 host`); required unless `SFTP_INSECURE_SKIP_VERIFY=true` |
+| `INSECURE_DEV_MODE` | false | Allow missing JWT_SECRET / default admin password (local dev only!) |
 | `AUDIT_RETENTION_DAYS` / `METRIC_RETENTION_DAYS` | 90 / 14 | Data retention |
 | `BASE_URL` | http://localhost:8080 | Public URL (emails, invites, OAuth) |
 

@@ -42,9 +42,18 @@ type API struct {
 	updateCache *updateInfo
 }
 
+// loginAttempt tracks brute-force state. sync.Map only guards the map entry,
+// so the fields themselves are protected by mu.
 type loginAttempt struct {
+	mu        sync.Mutex
 	Count     int       `json:"count"`
 	LastError time.Time `json:"last_error"`
+}
+
+func (l *loginAttempt) snapshot() (int, time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.Count, l.LastError
 }
 
 func NewAPI(nodes *docker.Manager, db *gorm.DB, cfg *config.Config, allowedOrigins []string,
@@ -70,8 +79,10 @@ func NewAPI(nodes *docker.Manager, db *gorm.DB, cfg *config.Config, allowedOrigi
 	go func() {
 		for range time.Tick(10 * time.Minute) {
 			a.loginAttempts.Range(func(k, v interface{}) bool {
-				if att, ok := v.(*loginAttempt); ok && time.Since(att.LastError) > 30*time.Minute {
-					a.loginAttempts.Delete(k)
+				if att, ok := v.(*loginAttempt); ok {
+					if _, last := att.snapshot(); time.Since(last) > 30*time.Minute {
+						a.loginAttempts.Delete(k)
+					}
 				}
 				return true
 			})
@@ -221,11 +232,13 @@ func (a *API) resolvePerms(claims *auth.Claims, server *models.Server) (models.P
 	if err := a.db.
 		Joins("JOIN user_groups ON user_groups.group_id = group_servers.group_id").
 		Where("user_groups.user_id = ? AND group_servers.server_id = ?", claims.UserID, server.ID).
-		Find(&groupGrants).Error; err == nil {
-		for _, g := range groupGrants {
-			perms = perms.Merge(g.Perms())
-			found = true
-		}
+		Find(&groupGrants).Error; err != nil {
+		// A DB failure must not masquerade as "no access" (false 403).
+		return models.Perms{}, nil, http.StatusInternalServerError
+	}
+	for _, g := range groupGrants {
+		perms = perms.Merge(g.Perms())
+		found = true
 	}
 
 	if !found {
@@ -256,7 +269,9 @@ func (a *API) HealthHandler(w http.ResponseWriter, r *http.Request) {
 		err = sqlDB.Ping()
 	}
 	if err != nil {
-		checks["database"] = "down: " + err.Error()
+		// Log the driver error; never expose connection details to clients.
+		a.logger.Error("health: database check failed", zap.Error(err))
+		checks["database"] = "down"
 		status = "DEGRADED"
 	} else {
 		checks["database"] = "up"

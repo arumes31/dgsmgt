@@ -74,7 +74,11 @@ func (a *API) GroupMembersHandler(w http.ResponseWriter, r *http.Request) {
 	if !a.decodeAndValidate(w, r, &input) {
 		return
 	}
-	gid, _ := strconv.Atoi(id)
+	gid, err := strconv.Atoi(id)
+	if err != nil || gid <= 0 {
+		utils.BadRequest(w, "Invalid group id")
+		return
+	}
 	a.db.Where("group_id = ?", gid).Delete(&models.UserGroup{})
 	for _, uid := range input.UserIDs {
 		a.db.Create(&models.UserGroup{UserID: uid, GroupID: uint(gid)})
@@ -95,7 +99,11 @@ func (a *API) GroupServersHandler(w http.ResponseWriter, r *http.Request) {
 	if !a.decodeAndValidate(w, r, &input) {
 		return
 	}
-	gid, _ := strconv.Atoi(id)
+	gid, err := strconv.Atoi(id)
+	if err != nil || gid <= 0 {
+		utils.BadRequest(w, "Invalid group id")
+		return
+	}
 
 	perms := input.Perms
 	if input.Preset != "" {
@@ -119,6 +127,12 @@ func (a *API) GroupServersHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) DeleteGroupServerHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	a.db.Where("group_id = ? AND server_id = ?", vars["id"], vars["serverId"]).Delete(&models.GroupServer{})
+	if err := a.db.Where("group_id = ? AND server_id = ?", vars["id"], vars["serverId"]).
+		Delete(&models.GroupServer{}).Error; err != nil {
+		a.internalError(w, r, err, "Failed to remove group grant")
+		return
+	}
+	a.audit(r, claimsFrom(r), "group_grant_removed",
+		auditOpts{Details: fmt.Sprintf("Removed server %s grant from group %s", vars["serverId"], vars["id"]), Success: true})
 	w.WriteHeader(http.StatusNoContent)
 }

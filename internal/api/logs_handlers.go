@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -41,6 +42,11 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	timestamps := r.URL.Query().Get("timestamps") == "true"
 
+	svc, ok := a.svcFor(w, server)
+	if !ok {
+		return
+	}
+
 	a.audit(r, claims, "logs", auditOpts{Server: server, Details: "Viewed container logs", Success: true})
 
 	conn, err := a.upgrader.Upgrade(w, r, nil)
@@ -49,22 +55,35 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = conn.Close() }()
+	ws := &syncWS{conn: conn}
 
-	svc := mustSvc(a, server)
-	reader, err := svc.Logs(r.Context(), id, tail, timestamps)
+	reader, err := svc.Logs(r.Context(), server.ContainerID, tail, timestamps)
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"stream":"stderr","data":"Error reading logs"}`))
+		_ = ws.writeText([]byte(`{"stream":"stderr","data":"Error reading logs"}`))
 		return
 	}
 	defer func() { _ = reader.Close() }()
 
 	go drainWS(conn)
-	streamDemuxed(conn, reader)
+	streamDemuxed(ws, reader)
+}
+
+// syncWS serializes websocket writes: gorilla/websocket permits only one
+// concurrent writer per connection.
+type syncWS struct {
+	mu   sync.Mutex
+	conn *websocket.Conn
+}
+
+func (s *syncWS) writeText(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.conn.WriteMessage(websocket.TextMessage, data)
 }
 
 // streamDemuxed forwards a multiplexed docker stream, preserving the
 // stdout/stderr distinction as JSON frames.
-func streamDemuxed(conn *websocket.Conn, reader io.Reader) {
+func streamDemuxed(ws *syncWS, reader io.Reader) {
 	buf := make([]byte, 32*1024)
 	pending := []byte{}
 	for {
@@ -81,7 +100,7 @@ func streamDemuxed(conn *websocket.Conn, reader io.Reader) {
 					// Not a valid header (TTY container) — send raw.
 					if streamType != 1 && streamType != 2 && streamType != 0 {
 						frame, _ := json.Marshal(map[string]string{"stream": "stdout", "data": string(pending)})
-						if conn.WriteMessage(websocket.TextMessage, frame) != nil {
+						if ws.writeText(frame) != nil {
 							return
 						}
 						pending = pending[:0]
@@ -93,7 +112,7 @@ func streamDemuxed(conn *websocket.Conn, reader io.Reader) {
 					name = "stderr"
 				}
 				frame, _ := json.Marshal(map[string]string{"stream": name, "data": string(pending[8 : 8+size])})
-				if conn.WriteMessage(websocket.TextMessage, frame) != nil {
+				if ws.writeText(frame) != nil {
 					return
 				}
 				pending = pending[8+size:]
@@ -131,8 +150,11 @@ func (a *API) DownloadLogsHandler(w http.ResponseWriter, r *http.Request) {
 	if tail == "" {
 		tail = "5000"
 	}
-	svc := mustSvc(a, server)
-	reader, err := svc.LogsOnce(r.Context(), id, tail)
+	svc, ok := a.svcFor(w, server)
+	if !ok {
+		return
+	}
+	reader, err := svc.LogsOnce(r.Context(), server.ContainerID, tail)
 	if err != nil {
 		a.internalError(w, r, err, "Failed to fetch logs")
 		return

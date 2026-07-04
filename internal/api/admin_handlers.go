@@ -191,15 +191,29 @@ func (a *API) DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Cascade: assignments, group memberships, sessions, prefs, subscriptions.
-	a.db.Where("user_id = ?", user.ID).Delete(&models.UserServer{})
-	a.db.Where("user_id = ?", user.ID).Delete(&models.UserGroup{})
-	a.db.Unscoped().Where("user_id = ?", user.ID).Delete(&models.Session{})
-	a.db.Where("user_id = ?", user.ID).Delete(&models.NotificationPref{})
-	a.db.Unscoped().Where("user_id = ?", user.ID).Delete(&models.PushSubscription{})
-	a.db.Unscoped().Where("user_id = ?", user.ID).Delete(&models.Notification{})
-
-	if err := a.db.Delete(&user).Error; err != nil {
+	// Cascade atomically: assignments, group memberships, sessions, prefs,
+	// subscriptions and the user itself — any failure rolls everything back.
+	if err := a.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", user.ID).Delete(&models.UserServer{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&models.UserGroup{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.Session{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&models.NotificationPref{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.PushSubscription{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.Notification{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&user).Error
+	}); err != nil {
 		a.internalError(w, r, err, "Failed to delete user")
 		return
 	}

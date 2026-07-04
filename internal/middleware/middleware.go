@@ -108,7 +108,11 @@ func RecoverMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-func AuthMiddleware(secret string) func(http.Handler) http.Handler {
+// AuthMiddleware verifies the JWT. The optional validate hook runs after
+// signature verification — the server uses it to compare the token's
+// TokenVersion against the user's current version, so RevokeAllSessions
+// invalidates outstanding access tokens immediately.
+func AuthMiddleware(secret string, validate func(*auth.Claims) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -134,6 +138,10 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 
 			claims, err := auth.VerifyToken(authHeader, secret)
 			if err != nil || claims.Pending2FA {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if validate != nil && !validate(claims) {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}

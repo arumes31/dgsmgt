@@ -101,9 +101,8 @@ func (a *API) CreateServerHandler(w http.ResponseWriter, r *http.Request) {
 
 	containerID, err := svc.Create(r.Context(), a.createOptsFor(&server))
 	if err != nil {
-		a.logger.Error("Docker creation failed", zap.Error(err))
 		a.audit(r, claims, "create_server", auditOpts{Details: err.Error(), Success: false})
-		utils.BadRequest(w, fmt.Sprintf("Docker error: %v", err))
+		a.internalError(w, r, err, "Docker create failed — check image, ports and volumes")
 		return
 	}
 	server.ContainerID = containerID
@@ -165,11 +164,14 @@ func (a *API) UpdateServerHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprint(oldOpts.Env) != fmt.Sprint(newOpts.Env) ||
 		fmt.Sprint(oldOpts.Volumes) != fmt.Sprint(newOpts.Volumes)
 
-	svc := mustSvc(a, &server)
+	svc, ok := a.svcFor(w, &server)
+	if !ok {
+		return
+	}
 
 	if before.Name != server.Name && !needsRecreate && server.ContainerID != "" {
 		if err := svc.Rename(r.Context(), server.ContainerID, server.Name); err != nil {
-			utils.BadRequest(w, "Rename failed: "+err.Error())
+			a.internalError(w, r, err, "Rename failed")
 			return
 		}
 	}
@@ -178,7 +180,7 @@ func (a *API) UpdateServerHandler(w http.ResponseWriter, r *http.Request) {
 		newID, err := svc.Recreate(r.Context(), server.ContainerID, newOpts, false, nil)
 		if err != nil {
 			a.audit(r, claims, "update_server", auditOpts{Server: &server, Details: err.Error(), Success: false})
-			utils.BadRequest(w, "Recreate failed: "+err.Error())
+			a.internalError(w, r, err, "Recreate failed — the previous container was preserved")
 			return
 		}
 		server.ContainerID = newID
@@ -216,13 +218,16 @@ func (a *API) RedeployHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	svc, ok := a.svcFor(w, &server)
+	if !ok {
+		return
+	}
+
 	conn, err := a.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer func() { _ = conn.Close() }()
-
-	svc := mustSvc(a, &server)
 	send := func(line string) { _ = conn.WriteMessage(websocket.TextMessage, []byte(line)) }
 
 	newID, err := svc.Recreate(r.Context(), server.ContainerID, a.createOptsFor(&server), true, send)
@@ -232,7 +237,12 @@ func (a *API) RedeployHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	server.ContainerID = newID
-	a.db.Save(&server)
+	if err := a.db.Save(&server).Error; err != nil {
+		a.logger.Error("redeploy: failed to persist new container id", zap.Error(err))
+		a.audit(r, claims, "redeploy", auditOpts{Server: &server, Details: "Recreated but DB save failed: " + err.Error(), Success: false})
+		send(`{"error":"container recreated but saving the new container id failed — check server logs"}`)
+		return
+	}
 	a.audit(r, claims, "redeploy", auditOpts{Server: &server, Details: "Pulled latest image and recreated container", Success: true})
 	send(`{"done":true}`)
 }
@@ -254,7 +264,10 @@ func (a *API) DeleteServerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if server.ContainerID != "" {
-		svc := mustSvc(a, &server)
+		svc, ok := a.svcFor(w, &server)
+		if !ok {
+			return
+		}
 		if err := svc.Delete(r.Context(), server.ContainerID, true); err != nil {
 			a.logger.Warn("Failed to delete container during server deletion",
 				zap.String("id", server.ContainerID), zap.Error(err))
@@ -291,10 +304,13 @@ func (a *API) RestoreServerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc := mustSvc(a, &server)
+	svc, ok := a.svcFor(w, &server)
+	if !ok {
+		return
+	}
 	containerID, err := svc.Create(r.Context(), a.createOptsFor(&server))
 	if err != nil {
-		utils.BadRequest(w, "Failed to recreate container: "+err.Error())
+		a.internalError(w, r, err, "Failed to recreate container from stored config")
 		return
 	}
 
@@ -325,12 +341,18 @@ func (a *API) PurgeServerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.db.Where("server_id = ?", server.ID).Delete(&models.UserServer{})
-	a.db.Where("server_id = ?", server.ID).Delete(&models.GroupServer{})
-	a.db.Where("server_id = ?", server.ID).Delete(&models.MetricSample{})
-	a.db.Where("server_id = ?", server.ID).Delete(&models.CommandSnippet{})
-	a.db.Where("server_id = ?", server.ID).Delete(&models.LogAlert{})
-	if err := a.db.Unscoped().Delete(&server).Error; err != nil {
+	// Purge atomically so a partial failure can't leave orphaned rows.
+	if err := a.db.Transaction(func(tx *gorm.DB) error {
+		for _, model := range []interface{}{
+			&models.UserServer{}, &models.GroupServer{}, &models.MetricSample{},
+			&models.CommandSnippet{}, &models.LogAlert{},
+		} {
+			if err := tx.Where("server_id = ?", server.ID).Delete(model).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Unscoped().Delete(&server).Error
+	}); err != nil {
 		a.internalError(w, r, err, "Failed to purge server")
 		return
 	}
@@ -369,10 +391,13 @@ func (a *API) CloneServerHandler(w http.ResponseWriter, r *http.Request) {
 	b, _ := json.Marshal(cc)
 	clone.ConfigJSON = string(b)
 
-	svc := mustSvc(a, &clone)
+	svc, ok := a.svcFor(w, &clone)
+	if !ok {
+		return
+	}
 	containerID, err := svc.Create(r.Context(), a.createOptsFor(&clone))
 	if err != nil {
-		utils.BadRequest(w, "Docker error: "+err.Error())
+		a.internalError(w, r, err, "Docker create failed for the clone")
 		return
 	}
 	clone.ContainerID = containerID

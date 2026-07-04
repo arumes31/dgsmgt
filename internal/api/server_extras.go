@@ -168,7 +168,10 @@ func (a *API) DiskUsageHandler(w http.ResponseWriter, r *http.Request) {
 		writeAccessStatus(w, status)
 		return
 	}
-	svc := mustSvc(a, server)
+	svc, ok := a.svcFor(w, server)
+	if !ok {
+		return
+	}
 	sizeRw, sizeRootFs, err := svc.DiskUsage(r.Context(), server.ContainerID)
 	if err != nil {
 		a.internalError(w, r, err, "Failed to read disk usage")

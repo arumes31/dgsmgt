@@ -127,12 +127,14 @@ func (s *Service) ReadFile(ctx context.Context, containerID, filePath string, ma
 			return nil, err
 		}
 		if hdr.Typeflag == tar.TypeReg {
-			limit := io.LimitReader(tr, maxBytes+1)
-			data, err := io.ReadAll(limit)
+			if maxBytes <= 0 { // 0 = unlimited
+				return io.ReadAll(tr)
+			}
+			data, err := io.ReadAll(io.LimitReader(tr, maxBytes+1))
 			if err != nil {
 				return nil, err
 			}
-			if maxBytes > 0 && int64(len(data)) > maxBytes {
+			if int64(len(data)) > maxBytes {
 				return nil, fmt.Errorf("file too large")
 			}
 			return data, nil

@@ -29,7 +29,7 @@ func (a *API) CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	network := "dgsmgt-" + strings.ToLower(input.Name)
 	if err := a.nodes.Local().EnsureNetwork(r.Context(), network); err != nil {
-		utils.BadRequest(w, "Failed to create network: "+err.Error())
+		a.internalError(w, r, err, "Failed to create the stack network")
 		return
 	}
 	stack := models.Stack{Name: input.Name, Network: network}
@@ -43,11 +43,17 @@ func (a *API) CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) DeleteStackHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	a.db.Model(&models.Server{}).Where("stack_id = ?", id).Update("stack_id", 0)
+	if err := a.db.Model(&models.Server{}).Where("stack_id = ?", id).Update("stack_id", 0).Error; err != nil {
+		a.internalError(w, r, err, "Failed to detach servers from stack")
+		return
+	}
+	// The stack's Docker network is intentionally kept: detached containers
+	// may still be attached to it; remove it manually once unused.
 	if err := a.db.Delete(&models.Stack{}, id).Error; err != nil {
 		a.internalError(w, r, err, "Failed to delete stack")
 		return
 	}
+	a.audit(r, claimsFrom(r), "delete_stack", auditOpts{Details: "Deleted stack " + id, Success: true})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -80,7 +86,10 @@ func (a *API) StackActionHandler(w http.ResponseWriter, r *http.Request) {
 
 	results := []map[string]interface{}{}
 	for _, s := range ptrs {
-		err := a.runAction(r.Context(), mustSvc(a, s), s, action)
+		svc, err := a.dockerFor(s)
+		if err == nil {
+			err = a.runAction(r.Context(), svc, s, action)
+		}
 		results = append(results, map[string]interface{}{"server": s.Name, "ok": err == nil})
 		a.audit(r, claims, "stack_"+action, auditOpts{Server: s, Success: err == nil})
 	}

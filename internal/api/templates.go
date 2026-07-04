@@ -403,7 +403,7 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	containerID, err := svc.Create(r.Context(), a.createOptsFor(&server))
 	if err != nil {
 		a.audit(r, claims, "deploy_template", auditOpts{Details: err.Error(), Success: false})
-		utils.BadRequest(w, "Docker error: "+err.Error())
+		a.internalError(w, r, err, "Docker create failed while deploying the template")
 		return
 	}
 	server.ContainerID = containerID

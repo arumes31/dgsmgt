@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 )
 
 // ---- Interactive console -----------------------------------------------------------
@@ -32,21 +31,26 @@ func (a *API) ConsoleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	svc, ok := a.svcFor(w, server)
+	if !ok {
+		return
+	}
+
 	conn, err := a.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer func() { _ = conn.Close() }()
+	ws := &syncWS{conn: conn}
 
-	svc := mustSvc(a, server)
-	reader, err := svc.Logs(r.Context(), id, "100", false)
+	reader, err := svc.Logs(r.Context(), server.ContainerID, "100", false)
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"stream":"stderr","data":"Error attaching to logs"}`))
+		_ = ws.writeText([]byte(`{"stream":"stderr","data":"Error attaching to logs"}`))
 		return
 	}
 	defer func() { _ = reader.Close() }()
 
-	// Input loop
+	// Input loop (all output funnels through the serialized syncWS writer).
 	go func() {
 		for {
 			_, msg, err := conn.ReadMessage()
@@ -58,23 +62,22 @@ func (a *API) ConsoleHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if !perms.CanSendCommands {
-				_ = conn.WriteMessage(websocket.TextMessage,
-					[]byte(`{"stream":"stderr","data":"Permission denied: cannot send commands\n"}`))
+				_ = ws.writeText([]byte(`{"stream":"stderr","data":"Permission denied: cannot send commands\n"}`))
 				continue
 			}
 			out, err := a.sendCommand(server, cmd)
 			a.audit(r, claims, "console_command", auditOpts{Server: server, Details: cmd, Success: err == nil})
 			if err != nil {
 				frame, _ := json.Marshal(map[string]string{"stream": "stderr", "data": "Command failed: " + err.Error() + "\n"})
-				_ = conn.WriteMessage(websocket.TextMessage, frame)
+				_ = ws.writeText(frame)
 			} else if out != "" {
 				frame, _ := json.Marshal(map[string]string{"stream": "stdout", "data": out + "\n"})
-				_ = conn.WriteMessage(websocket.TextMessage, frame)
+				_ = ws.writeText(frame)
 			}
 		}
 	}()
 
-	streamDemuxed(conn, reader)
+	streamDemuxed(ws, reader)
 }
 
 func (a *API) sendCommand(server *models.Server, cmd string) (string, error) {
@@ -87,7 +90,10 @@ func (a *API) sendCommand(server *models.Server, cmd string) (string, error) {
 		}
 		return rcon.Send(server.RconHost, server.RconPort, server.RconPassword, cmd)
 	default: // attach (stdin)
-		svc := mustSvc(a, server)
+		svc, err := a.dockerFor(server)
+		if err != nil {
+			return "", fmt.Errorf("node offline: cannot reach this server's Docker host")
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		return "", svc.SendStdin(ctx, server.ContainerID, cmd)
@@ -161,6 +167,7 @@ func (a *API) CreateSnippetHandler(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err, "Failed to save snippet")
 		return
 	}
+	a.audit(r, claims, "create_snippet", auditOpts{Server: server, Details: input.Name, Success: true})
 	utils.Created(w, snippet)
 }
 
@@ -176,7 +183,12 @@ func (a *API) DeleteSnippetHandler(w http.ResponseWriter, r *http.Request) {
 		utils.Forbidden(w, "Permission denied")
 		return
 	}
-	a.db.Where("id = ? AND server_id = ?", vars["snippetId"], server.ID).Delete(&models.CommandSnippet{})
+	if err := a.db.Where("id = ? AND server_id = ?", vars["snippetId"], server.ID).
+		Delete(&models.CommandSnippet{}).Error; err != nil {
+		a.internalError(w, r, err, "Failed to delete snippet")
+		return
+	}
+	a.audit(r, claims, "delete_snippet", auditOpts{Server: server, Details: "Deleted snippet " + vars["snippetId"], Success: true})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -230,6 +242,11 @@ func (a *API) DeleteLogAlertHandler(w http.ResponseWriter, r *http.Request) {
 		writeAccessStatus(w, status)
 		return
 	}
-	a.db.Where("id = ? AND server_id = ?", vars["alertId"], server.ID).Delete(&models.LogAlert{})
+	if err := a.db.Where("id = ? AND server_id = ?", vars["alertId"], server.ID).
+		Delete(&models.LogAlert{}).Error; err != nil {
+		a.internalError(w, r, err, "Failed to delete log alert")
+		return
+	}
+	a.audit(r, claims, "delete_log_alert", auditOpts{Server: server, Details: "Deleted alert " + vars["alertId"], Success: true})
 	w.WriteHeader(http.StatusNoContent)
 }

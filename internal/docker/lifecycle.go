@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -167,11 +168,15 @@ func (s *Service) Pull(ctx context.Context, imageName string, progress func(line
 }
 
 // Recreate replaces a container with a new one built from opts. Volume binds
-// point at host paths so data survives. Returns the new container ID.
+// point at host paths so data survives. The old container is kept (renamed
+// aside) until the replacement is confirmed, so a failed create or start
+// rolls back instead of leaving no container at all. Returns the new ID.
 func (s *Service) Recreate(ctx context.Context, oldContainerID string, o CreateOpts, pullLatest bool, progress func(string)) (string, error) {
 	wasRunning := false
+	oldName := ""
 	if inspect, err := s.cli.ContainerInspect(ctx, oldContainerID); err == nil {
 		wasRunning = inspect.State != nil && inspect.State.Running
+		oldName = strings.TrimPrefix(inspect.Name, "/")
 	}
 
 	if pullLatest {
@@ -181,18 +186,42 @@ func (s *Service) Recreate(ctx context.Context, oldContainerID string, o CreateO
 		o.SkipPull = true
 	}
 
-	if err := s.Delete(ctx, oldContainerID, true); err != nil {
-		return "", fmt.Errorf("removing old container: %w", err)
+	// Stage: move the old container aside so the new one can take its name.
+	staged := false
+	if oldName != "" {
+		tmpName := fmt.Sprintf("%s-old-%d", o.Name, time.Now().Unix())
+		if err := s.cli.ContainerRename(ctx, oldContainerID, tmpName); err == nil {
+			staged = true
+		}
+	}
+
+	rollback := func() {
+		if staged {
+			_ = s.cli.ContainerRename(ctx, oldContainerID, oldName)
+		}
 	}
 
 	newID, err := s.Create(ctx, o)
 	if err != nil {
+		rollback()
 		return "", err
 	}
+
 	if wasRunning {
+		// Free the ports held by the old container, then bring up the new one.
+		_ = s.cli.ContainerStop(ctx, oldContainerID, container.StopOptions{})
 		if err := s.Start(ctx, newID); err != nil {
-			return newID, fmt.Errorf("container recreated but failed to start: %w", err)
+			_ = s.Delete(ctx, newID, true)
+			rollback()
+			_ = s.cli.ContainerStart(ctx, oldContainerID, container.StartOptions{})
+			return "", fmt.Errorf("new container failed to start; previous container restored: %w", err)
 		}
+	}
+
+	if err := s.Delete(ctx, oldContainerID, true); err != nil {
+		// Non-fatal: the replacement is up; the staged old container lingers
+		// under its temporary name until removed manually.
+		return newID, nil
 	}
 	return newID, nil
 }

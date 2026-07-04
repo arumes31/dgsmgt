@@ -42,6 +42,8 @@ type Config struct {
 	SFTPUser     string
 	SFTPPassword string
 	SFTPPath     string
+	SFTPHostKey  string // server public key in authorized_keys format (host key pinning)
+	SFTPInsecure bool   // explicit opt-out of host key verification
 
 	// SMTP (optional, for email notifications + password reset)
 	SMTPHost string
@@ -95,7 +97,7 @@ func getdur(key string, def time.Duration) time.Duration {
 var BuildVersion = "dev"
 
 func Load() *Config {
-	return &Config{
+	cfg := &Config{
 		DatabaseURL:         getenv("DATABASE_URL", "host=localhost user=dgsmgt password=dgsmgt dbname=dgsmgt port=5432 sslmode=disable"),
 		Port:                getenv("PORT", "8080"),
 		JWTSecret:           getenv("JWT_SECRET", ""),
@@ -120,6 +122,8 @@ func Load() *Config {
 		SFTPUser:            os.Getenv("SFTP_USER"),
 		SFTPPassword:        os.Getenv("SFTP_PASSWORD"),
 		SFTPPath:            getenv("SFTP_PATH", "dgsmgt-backups"),
+		SFTPHostKey:         os.Getenv("SFTP_HOST_KEY"),
+		SFTPInsecure:        getbool("SFTP_INSECURE_SKIP_VERIFY"),
 		SMTPHost:            os.Getenv("SMTP_HOST"),
 		SMTPPort:            getenv("SMTP_PORT", "587"),
 		SMTPUser:            os.Getenv("SMTP_USER"),
@@ -133,4 +137,10 @@ func Load() *Config {
 		DataPath:            getenv("SERVER_DATA_PATH", "./serverdata"),
 		Version:             BuildVersion,
 	}
+	// Guard against zero/negative intervals (e.g. METRIC_INTERVAL=0s) which
+	// would panic time.NewTicker in the monitor.
+	if cfg.MetricInterval <= 0 {
+		cfg.MetricInterval = 30 * time.Second
+	}
+	return cfg
 }
