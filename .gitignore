@@ -1,22 +1,46 @@
+# Binaries
+dgsmgt
 soulmask-control
 *.exe
-*.log
-.qodo/
-vendor/
+*.dll
+*.so
 
-# Coverage and testing
+# Databases (runtime is PostgreSQL; any local .db is a dev leftover)
+*.db
+*.db-journal
+
+# Test & coverage artifacts
 *.out
 *.test
-*.db
-!dgsmgt.db
-ro.db
-test_dgsmgt.db
-coverage/
-
-# Coverage and profiles
-/cov/
-/coverage/
-/cov_*
-/coverage_*
 *.prof
-*.test
+*.log
+/coverage
+/coverage.html
+/coverage/
+/coverage_*
+/cov/
+/cov_*
+/middleware
+/only_headers
+/server
+
+# Runtime data (created by the panel)
+/backups/
+/serverlogs/
+/serverdata/
+
+# Legacy pre-v2 tests kept locally for reference only
+/legacy_tests/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / tooling
+.qodo/
+.vscode/
+.idea/
+vendor/
+temp/
+tmp/
