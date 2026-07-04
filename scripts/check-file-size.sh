@@ -11,6 +11,7 @@ for f in $(git ls-files 'internal/**/*.go' 'cmd/**/*.go' 'static/**/*.js' 'stati
     case "$f" in
         legacy_tests/*) continue ;;
     esac
+    [ -f "$f" ] || continue
     lines=$(wc -l < "$f")
     if [ "$lines" -gt "$MAX_LINES" ]; then
         echo "FAIL: $f has $lines lines (max $MAX_LINES) — split it by topic"

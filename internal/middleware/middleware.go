@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"crypto/rand"
 	"dgsmgt/internal/auth"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"strings"
@@ -16,7 +18,10 @@ import (
 type contextKey string
 
 const ClaimsKey contextKey = "claims"
+const RequestIDKey contextKey = "request_id"
 
+// IPMiddleware normalizes the client IP when running behind a reverse proxy
+// or Cloudflare (CF-Connecting-IP takes precedence over X-Forwarded-For).
 func IPMiddleware(trustProxy bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +31,45 @@ func IPMiddleware(trustProxy bool) func(http.Handler) http.Handler {
 				} else if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 					ips := strings.Split(xff, ",")
 					r.RemoteAddr = net.JoinHostPort(strings.TrimSpace(ips[0]), "0")
+				} else if xri := r.Header.Get("X-Real-IP"); xri != "" {
+					r.RemoteAddr = net.JoinHostPort(strings.TrimSpace(xri), "0")
 				}
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// ClientIP extracts the bare IP from RemoteAddr.
+func ClientIP(r *http.Request) string {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
+
+// RequestIDMiddleware attaches a request ID to the context and response.
+func RequestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			b := make([]byte, 8)
+			_, _ = rand.Read(b)
+			id = hex.EncodeToString(b)
+		}
+		w.Header().Set("X-Request-ID", id)
+		ctx := context.WithValue(r.Context(), RequestIDKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// RequestID returns the request ID from context (empty if absent).
+func RequestID(r *http.Request) string {
+	if v, ok := r.Context().Value(RequestIDKey).(string); ok {
+		return v
+	}
+	return ""
 }
 
 // LoggingMiddleware uses zap for structured logging
@@ -39,13 +78,32 @@ func LoggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			next.ServeHTTP(w, r)
-			
+
 			logger.Info("request",
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
 				zap.String("remote_addr", r.RemoteAddr),
+				zap.String("request_id", RequestID(r)),
 				zap.Duration("duration", time.Since(start)),
 			)
+		})
+	}
+}
+
+// RecoverMiddleware converts panics into 500s instead of dropping connections.
+func RecoverMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					logger.Error("panic recovered",
+						zap.Any("panic", rec),
+						zap.String("path", r.URL.Path),
+						zap.String("request_id", RequestID(r)))
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
+			}()
+			next.ServeHTTP(w, r)
 		})
 	}
 }
@@ -55,12 +113,18 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				cookie, err := r.Cookie("token")
-				if err != nil {
-					http.Error(w, "Unauthorized", http.StatusUnauthorized)
-					return
+				// WebSocket clients can't set headers: allow token query param there.
+				if r.Header.Get("Upgrade") == "websocket" {
+					authHeader = r.URL.Query().Get("token")
 				}
-				authHeader = cookie.Value
+				if authHeader == "" {
+					cookie, err := r.Cookie("token")
+					if err != nil {
+						http.Error(w, "Unauthorized", http.StatusUnauthorized)
+						return
+					}
+					authHeader = cookie.Value
+				}
 			} else {
 				parts := strings.Split(authHeader, " ")
 				if len(parts) == 2 && parts[0] == "Bearer" {
@@ -69,7 +133,7 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 			}
 
 			claims, err := auth.VerifyToken(authHeader, secret)
-			if err != nil {
+			if err != nil || claims.Pending2FA {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -85,6 +149,19 @@ func AdminMiddleware(next http.Handler) http.Handler {
 		claims, ok := r.Context().Value(ClaimsKey).(*auth.Claims)
 		if !ok || !claims.IsAdmin {
 			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RootMiddleware restricts a route to the superadmin/root user
+// (permanent deletes, panel settings, node management).
+func RootMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := r.Context().Value(ClaimsKey).(*auth.Claims)
+		if !ok || !claims.IsRoot {
+			http.Error(w, "Forbidden: requires superadmin", http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -128,10 +205,7 @@ func RateLimitMiddleware(rps float64, burst int) func(http.Handler) http.Handler
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
+			ip := ClientIP(r)
 
 			mu.Lock()
 			if _, found := clients[ip]; !found {

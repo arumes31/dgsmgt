@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"dgsmgt/internal/models"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -10,39 +13,60 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrInvalidCredentials = errors.New("invalid username or password")
+var ErrAccountDisabled = errors.New("account is disabled")
+
 type Claims struct {
-	UserID   uint   `json:"user_id"`
-	Username string `json:"username"`
-	IsAdmin  bool   `json:"is_admin"`
+	UserID       uint   `json:"user_id"`
+	Username     string `json:"username"`
+	IsAdmin      bool   `json:"is_admin"`
+	IsRoot       bool   `json:"is_root"`
+	TokenVersion int    `json:"tv"`
+	Pending2FA   bool   `json:"pending_2fa,omitempty"` // password ok, awaiting TOTP
 	jwt.RegisteredClaims
 }
 
-var GenerateToken = func(user *models.User, secret string) (string, error) {
-	expirationTime := time.Now().Add(24 * time.Hour)
+// GenerateToken issues a short-lived access token.
+var GenerateToken = func(user *models.User, secret string, ttl time.Duration) (string, error) {
 	claims := &Claims{
-		UserID:   user.ID,
-		Username: user.Username,
-		IsAdmin:  user.IsAdmin,
+		UserID:       user.ID,
+		Username:     user.Username,
+		IsAdmin:      user.IsAdmin,
+		IsRoot:       user.IsRoot,
+		TokenVersion: user.TokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
 
+// GeneratePendingToken issues a 5-minute token that is only valid to complete
+// the TOTP step of login.
+func GeneratePendingToken(user *models.User, secret string) (string, error) {
+	claims := &Claims{
+		UserID:       user.ID,
+		Username:     user.Username,
+		TokenVersion: user.TokenVersion,
+		Pending2FA:   true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+		},
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
 }
 
 func VerifyToken(tokenString, secret string) (*Claims, error) {
 	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
-	_ = token // Keep reference if needed, but ParseWithClaims already validated it
 	return claims, nil
 }
 
@@ -50,13 +74,17 @@ func Authenticate(database *gorm.DB, username, password string) (*models.User, e
 	var user models.User
 	if err := database.Where("username = ?", username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("invalid username or password")
+			return nil, ErrInvalidCredentials
 		}
 		return nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, errors.New("invalid username or password")
+		return nil, ErrInvalidCredentials
+	}
+
+	if user.Disabled {
+		return nil, ErrAccountDisabled
 	}
 
 	return &user, nil
@@ -65,4 +93,88 @@ func Authenticate(database *gorm.DB, username, password string) (*models.User, e
 var HashPassword = func(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
+}
+
+// RandomToken returns a 32-byte hex random token.
+func RandomToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// HashToken hashes an opaque token (refresh token, reset token) for storage.
+func HashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// CreateSession creates a refresh session and returns the opaque refresh token.
+func CreateSession(database *gorm.DB, user *models.User, ua, ip string, ttl time.Duration) (string, error) {
+	token, err := RandomToken()
+	if err != nil {
+		return "", err
+	}
+	sess := models.Session{
+		UserID:           user.ID,
+		RefreshTokenHash: HashToken(token),
+		UserAgent:        ua,
+		IP:               ip,
+		ExpiresAt:        time.Now().Add(ttl),
+		LastUsedAt:       time.Now(),
+	}
+	if err := database.Create(&sess).Error; err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// RotateSession validates a refresh token, rotates it and returns user + new token.
+func RotateSession(database *gorm.DB, refreshToken string) (*models.User, string, error) {
+	var sess models.Session
+	if err := database.Where("refresh_token_hash = ? AND revoked = ?", HashToken(refreshToken), false).
+		First(&sess).Error; err != nil {
+		return nil, "", errors.New("invalid session")
+	}
+	if time.Now().After(sess.ExpiresAt) {
+		return nil, "", errors.New("session expired")
+	}
+
+	var user models.User
+	if err := database.First(&user, sess.UserID).Error; err != nil {
+		return nil, "", errors.New("user not found")
+	}
+	if user.Disabled {
+		return nil, "", ErrAccountDisabled
+	}
+
+	newToken, err := RandomToken()
+	if err != nil {
+		return nil, "", err
+	}
+	sess.RefreshTokenHash = HashToken(newToken)
+	sess.LastUsedAt = time.Now()
+	if err := database.Save(&sess).Error; err != nil {
+		return nil, "", err
+	}
+	return &user, newToken, nil
+}
+
+// RevokeSession revokes the session matching a refresh token.
+func RevokeSession(database *gorm.DB, refreshToken string) error {
+	return database.Model(&models.Session{}).
+		Where("refresh_token_hash = ?", HashToken(refreshToken)).
+		Update("revoked", true).Error
+}
+
+// RevokeAllSessions revokes every session of a user and bumps their token
+// version so outstanding access tokens die too.
+func RevokeAllSessions(database *gorm.DB, userID uint) error {
+	if err := database.Model(&models.Session{}).Where("user_id = ?", userID).
+		Update("revoked", true).Error; err != nil {
+		return err
+	}
+	return database.Model(&models.User{}).Where("id = ?", userID).
+		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
 }

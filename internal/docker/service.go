@@ -4,38 +4,68 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type DockerClient interface {
 	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	ContainerInspectWithRaw(ctx context.Context, containerID string, getSize bool) (types.ContainerJSON, []byte, error)
 	ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error
 	ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error
 	ContainerRestart(ctx context.Context, containerID string, options container.StopOptions) error
+	ContainerKill(ctx context.Context, containerID, signal string) error
+	ContainerPause(ctx context.Context, containerID string) error
+	ContainerUnpause(ctx context.Context, containerID string) error
+	ContainerRename(ctx context.Context, containerID, newContainerName string) error
 	ContainerLogs(ctx context.Context, containerID string, options container.LogsOptions) (io.ReadCloser, error)
 	ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error)
 	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
 	ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	ContainerAttach(ctx context.Context, containerID string, options container.AttachOptions) (types.HijackedResponse, error)
+	ContainerExecCreate(ctx context.Context, containerID string, options container.ExecOptions) (types.IDResponse, error)
+	ContainerExecAttach(ctx context.Context, execID string, options container.ExecAttachOptions) (types.HijackedResponse, error)
+	CopyFromContainer(ctx context.Context, containerID, srcPath string) (io.ReadCloser, container.PathStat, error)
+	CopyToContainer(ctx context.Context, containerID, dstPath string, content io.Reader, options container.CopyToContainerOptions) error
+	ContainerStatPath(ctx context.Context, containerID, path string) (container.PathStat, error)
 	ImagePull(ctx context.Context, ref string, options image.PullOptions) (io.ReadCloser, error)
 	ContainerStats(ctx context.Context, containerID string, stream bool) (container.StatsResponseReader, error)
+	Events(ctx context.Context, options events.ListOptions) (<-chan events.Message, <-chan error)
+	NetworkList(ctx context.Context, options network.ListOptions) ([]network.Summary, error)
+	NetworkCreate(ctx context.Context, name string, options network.CreateOptions) (network.CreateResponse, error)
+	Ping(ctx context.Context) (types.Ping, error)
+}
+
+// ManagedLabel marks containers created by this panel.
+const ManagedLabel = "dgsmgt.managed"
+
+type HealthInfo struct {
+	Status        string `json:"status"` // healthy|unhealthy|starting|none
+	FailingStreak int    `json:"failing_streak"`
 }
 
 type ContainerInfo struct {
-	ID     string   `json:"id"`
-	Names  []string `json:"names"`
-	Status string   `json:"status"`
-	State  string   `json:"state"`
-	Image  string   `json:"image"`
-	Uptime string   `json:"uptime"`
-	Ports  []string `json:"ports"`
+	ID           string     `json:"id"`
+	Names        []string   `json:"names"`
+	Status       string     `json:"status"`
+	State        string     `json:"state"`
+	Image        string     `json:"image"`
+	Uptime       string     `json:"uptime"`     // humanized, e.g. "3d 4h 12m"
+	StartedAt    string     `json:"started_at"` // RFC3339
+	Ports        []string   `json:"ports"`
+	ExitCode     int        `json:"exit_code"`
+	OOMKilled    bool       `json:"oom_killed"`
+	RestartCount int        `json:"restart_count"`
+	Health       HealthInfo `json:"health"`
+	Managed      bool       `json:"managed"`
 }
 
 type Service struct {
@@ -56,8 +86,30 @@ func NewServiceWithClient(cli DockerClient) *Service {
 	return &Service{cli: cli}
 }
 
+// HumanizeUptime renders a duration since start as "3d 4h 12m".
+func HumanizeUptime(startedAt string) string {
+	t, err := time.Parse(time.RFC3339Nano, startedAt)
+	if err != nil {
+		return ""
+	}
+	d := time.Since(t)
+	if d < 0 {
+		return ""
+	}
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	mins := int(d.Minutes()) % 60
+	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd %dh %dm", days, hours, mins)
+	case hours > 0:
+		return fmt.Sprintf("%dh %dm", hours, mins)
+	default:
+		return fmt.Sprintf("%dm", mins)
+	}
+}
+
 func (s *Service) GetStatus(ctx context.Context, containerID string) (*ContainerInfo, error) {
-	// Add timeout to Docker API call
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -75,120 +127,39 @@ func (s *Service) GetStatus(ctx context.Context, containerID string) (*Container
 		}
 	}
 
-	return &ContainerInfo{
-		ID:     inspect.ID,
-		Names:  []string{inspect.Name},
-		Status: inspect.State.Status,
-		State:  inspect.State.Status,
-		Image:  inspect.Config.Image,
-		Uptime: inspect.State.StartedAt,
-		Ports:  ports,
-	}, nil
-}
-
-func (s *Service) Start(ctx context.Context, containerID string) error {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	return s.cli.ContainerStart(ctx, containerID, container.StartOptions{})
-}
-
-func (s *Service) Stop(ctx context.Context, containerID string) error {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	return s.cli.ContainerStop(ctx, containerID, container.StopOptions{})
-}
-
-func (s *Service) Restart(ctx context.Context, containerID string) error {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	return s.cli.ContainerRestart(ctx, containerID, container.StopOptions{})
-}
-
-func (s *Service) Logs(ctx context.Context, containerID string, tail string) (io.ReadCloser, error) {
-	// Logs is a streaming endpoint, but we add initial timeout for connecting/fetching first logs
-	// In some implementations, logs follow context cancellation.
-	options := container.LogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     true,
-		Tail:       tail,
+	info := &ContainerInfo{
+		ID:        inspect.ID,
+		Names:     []string{inspect.Name},
+		Status:    inspect.State.Status,
+		State:     inspect.State.Status,
+		Image:     inspect.Config.Image,
+		StartedAt: inspect.State.StartedAt,
+		Ports:     ports,
+		Health:    HealthInfo{Status: "none"},
 	}
-	return s.cli.ContainerLogs(ctx, containerID, options)
-}
-
-func (s *Service) Stats(ctx context.Context, containerID string) (io.ReadCloser, error) {
-	resp, err := s.cli.ContainerStats(ctx, containerID, true)
-	if err != nil {
-		return nil, err
+	if inspect.State.Running {
+		info.Uptime = HumanizeUptime(inspect.State.StartedAt)
 	}
-	return resp.Body, nil
-}
-
-func (s *Service) Create(ctx context.Context, name string, imageName string, ports []string, env []string, volumes []string) (string, error) {
-	// Sanitize name
-	if !isValidContainerName(name) {
-		return "", fmt.Errorf("invalid container name: %s", name)
-	}
-
-	// Docker pull can take longer, use longer timeout
-	pullCtx, pullCancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer pullCancel()
-
-	// Pull image first
-	rc, err := s.cli.ImagePull(pullCtx, imageName, image.PullOptions{})
-	if err != nil {
-		return "", fmt.Errorf("pulling image: %w", err)
-	}
-	defer rc.Close()
-	if _, err := io.Copy(io.Discard, rc); err != nil {
-		return "", fmt.Errorf("reading pull output: %w", err)
-	}
-
-	// Port configuration
-	exposedPorts, portBindings, err := nat.ParsePortSpecs(ports)
-	if err != nil {
-		return "", fmt.Errorf("parsing ports: %w", err)
-	}
-
-	config := &container.Config{
-		Image:        imageName,
-		Env:          env,
-		ExposedPorts: exposedPorts,
-	}
-
-	hostConfig := &container.HostConfig{
-		PortBindings: portBindings,
-		Binds:        volumes,
-	}
-
-	createCtx, createCancel := context.WithTimeout(ctx, defaultTimeout)
-	defer createCancel()
-	resp, err := s.cli.ContainerCreate(createCtx, config, hostConfig, nil, nil, name)
-	if err != nil {
-		return "", fmt.Errorf("creating container: %w", err)
-	}
-
-	return resp.ID, nil
-}
-
-func isValidContainerName(name string) bool {
-	if len(name) == 0 {
-		return false
-	}
-	for _, r := range name {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == '.') {
-			return false
+	info.ExitCode = inspect.State.ExitCode
+	info.OOMKilled = inspect.State.OOMKilled
+	info.RestartCount = inspect.RestartCount
+	if inspect.State.Health != nil {
+		info.Health = HealthInfo{
+			Status:        strings.ToLower(inspect.State.Health.Status),
+			FailingStreak: inspect.State.Health.FailingStreak,
 		}
 	}
-	return true
+	if inspect.Config != nil && inspect.Config.Labels != nil {
+		info.Managed = inspect.Config.Labels[ManagedLabel] == "true"
+	}
+	return info, nil
 }
 
-func (s *Service) Delete(ctx context.Context, containerID string, force bool) error {
+// Inspect returns the raw inspect payload (used for mounts, config diffing, adoption).
+func (s *Service) Inspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
-	return s.cli.ContainerRemove(ctx, containerID, container.RemoveOptions{
-		Force: force,
-	})
+	return s.cli.ContainerInspect(ctx, containerID)
 }
 
 func (s *Service) List(ctx context.Context) ([]ContainerInfo, error) {
@@ -211,16 +182,63 @@ func (s *Service) List(ctx context.Context) ([]ContainerInfo, error) {
 		}
 
 		infoList = append(infoList, ContainerInfo{
-			ID:     c.ID,
-			Names:  c.Names,
-			Status: c.Status,
-			State:  c.State,
-			Image:  c.Image,
-			Uptime: c.Status, // For list, status often contains uptime string like "Up 2 hours"
-			Ports:  ports,
+			ID:      c.ID,
+			Names:   c.Names,
+			Status:  c.Status,
+			State:   c.State,
+			Image:   c.Image,
+			Uptime:  c.Status,
+			Ports:   ports,
+			Managed: c.Labels[ManagedLabel] == "true",
 		})
 	}
 
 	return infoList, nil
 }
 
+// Networks lists docker network names for the create form.
+func (s *Service) Networks(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	nets, err := s.cli.NetworkList(ctx, network.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(nets))
+	for _, n := range nets {
+		names = append(names, n.Name)
+	}
+	return names, nil
+}
+
+// EnsureNetwork creates a bridge network if it doesn't exist (stacks).
+func (s *Service) EnsureNetwork(ctx context.Context, name string) error {
+	nets, err := s.Networks(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range nets {
+		if n == name {
+			return nil
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	_, err = s.cli.NetworkCreate(ctx, name, network.CreateOptions{Driver: "bridge"})
+	return err
+}
+
+// Exec runs a command in the container and returns combined output.
+func (s *Service) Events(ctx context.Context) (<-chan events.Message, <-chan error) {
+	return s.cli.Events(ctx, events.ListOptions{})
+}
+
+func (s *Service) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err := s.cli.Ping(ctx)
+	return err
+}
+
+// stripDockerStreamHeaders removes the 8-byte multiplexing headers from a
+// docker stream buffer.

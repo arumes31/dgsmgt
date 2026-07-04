@@ -1,16 +1,16 @@
 package models
 
 import (
-	"testing"
 	"gorm.io/gorm"
+	"testing"
 )
 
 func TestModels(t *testing.T) {
 	u := User{
-		Model: gorm.Model{ID: 1},
-		Username: "admin",
+		Model:        gorm.Model{ID: 1},
+		Username:     "admin",
 		PasswordHash: "secret",
-		IsAdmin: true,
+		IsAdmin:      true,
 	}
 	if u.Username != "admin" {
 		t.Errorf("Expected username admin, got %s", u.Username)
@@ -20,11 +20,11 @@ func TestModels(t *testing.T) {
 	}
 
 	s := Server{
-		Model: gorm.Model{ID: 1},
-		Name: "testserver",
-		ContainerID: "cid",
-		Image: "image",
-		ConfigJSON: "{}",
+		Model:        gorm.Model{ID: 1},
+		Name:         "testserver",
+		ContainerID:  "cid",
+		Image:        "image",
+		ConfigJSON:   "{}",
 		CronSchedule: "* * * * *",
 	}
 	if s.Name != "testserver" {
@@ -35,11 +35,11 @@ func TestModels(t *testing.T) {
 	}
 
 	us := UserServer{
-		UserID: 1,
-		ServerID: 1,
-		CanStart: true,
-		CanStop: true,
-		CanRestart: true,
+		UserID:      1,
+		ServerID:    1,
+		CanStart:    true,
+		CanStop:     true,
+		CanRestart:  true,
 		CanViewLogs: true,
 	}
 	if us.UserID != 1 {
@@ -50,13 +50,13 @@ func TestModels(t *testing.T) {
 	}
 
 	al := AuditLog{
-		Model: gorm.Model{ID: 1},
-		UserID: 1,
-		Username: "admin",
-		Action: "start",
-		ServerID: 1,
+		Model:      gorm.Model{ID: 1},
+		UserID:     1,
+		Username:   "admin",
+		Action:     "start",
+		ServerID:   1,
 		ServerName: "testserver",
-		Details: "server started",
+		Details:    "server started",
 	}
 	if al.Action != "start" {
 		t.Errorf("Expected action start, got %s", al.Action)

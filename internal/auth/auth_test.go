@@ -3,9 +3,10 @@ package auth
 import (
 	"dgsmgt/internal/models"
 	"testing"
+	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/glebarez/sqlite"
+	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -27,7 +28,7 @@ func TestGenerateToken(t *testing.T) {
 	}
 	user.ID = 1
 	secret := "secret"
-	token, err := GenerateToken(user, secret)
+	token, err := GenerateToken(user, secret, time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
 	}
@@ -70,12 +71,12 @@ func TestVerifyTokenUnsigned(t *testing.T) {
 func TestAuthenticate(t *testing.T) {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	_ = db.AutoMigrate(&models.User{})
-	
+
 	pass := "password123"
 	hash, _ := HashPassword(pass)
 	user := models.User{Username: "testuser", PasswordHash: hash}
 	db.Create(&user)
-	
+
 	// Success
 	res, err := Authenticate(db, "testuser", pass)
 	if err != nil {
@@ -84,13 +85,13 @@ func TestAuthenticate(t *testing.T) {
 	if res.Username != "testuser" {
 		t.Errorf("Expected testuser, got %s", res.Username)
 	}
-	
+
 	// Wrong password
 	_, err = Authenticate(db, "testuser", "wrong-password")
 	if err == nil {
 		t.Error("Expected error for wrong password")
 	}
-	
+
 	// Non-existent user
 	_, err = Authenticate(db, "nonexistent-user-123", pass)
 	if err == nil || err.Error() != "invalid username or password" {

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile | DGSMgt</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/app2.css">
+</head>
+<body>
+<div class="mesh-bg"></div>
+<main class="main-content" style="max-width:900px" id="main">
+  <div class="topbar">
+    <a class="btn btn-outline" href="/dashboard.html">← Servers</a>
+    <h1 class="grow">Profile</h1>
+    <span id="bell-mount"></span>
+    <button class="btn btn-outline btn-icon" onclick="App.toggleTheme()">🌓</button>
+    <button class="btn btn-outline" onclick="App.logout()">Logout</button>
+  </div>
+
+  <div id="must-banner" class="banner banner-warn hidden">⚠️ You must change your password before continuing.</div>
+
+  <div class="glass mb" style="border-radius:var(--radius-md);padding:28px">
+    <h3 class="mb">Account</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><label class="form-label">Username</label><input class="form-input" id="p-user" disabled></div>
+      <div><label class="form-label">Email</label><input class="form-input" id="p-email" type="email"></div>
+      <div><label class="form-label">Timezone</label><select class="form-input" id="p-tz"></select></div>
+      <div><label class="form-label">Language</label>
+        <select class="form-input" id="p-lang"><option value="en">English</option><option value="de">Deutsch</option></select></div>
+    </div>
+    <button class="btn btn-primary mt" id="p-save">Save</button>
+  </div>
+
+  <div class="glass mb" style="border-radius:var(--radius-md);padding:28px">
+    <h3 class="mb">Change password</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <input class="form-input" id="pw-cur" type="password" placeholder="Current password" autocomplete="current-password">
+      <input class="form-input" id="pw-new" type="password" placeholder="New password (min 8)" autocomplete="new-password">
+    </div>
+    <div class="small mt" id="pw-strength"></div>
+    <button class="btn btn-primary mt" id="pw-save">Change password</button>
+    <p class="small mt">Changing the password logs out all other devices.</p>
+  </div>
+
+  <div class="glass mb" style="border-radius:var(--radius-md);padding:28px">
+    <h3 class="mb">Two-factor authentication (TOTP)</h3>
+    <div id="totp-off" class="hidden">
+      <p class="small mb">Protect your account with an authenticator app (optional).</p>
+      <button class="btn btn-primary" id="totp-setup">Enable 2FA</button>
+      <div id="totp-confirm" class="hidden mt">
+        <p class="small">Add this secret to your authenticator app, then confirm with a code:</p>
+        <p class="mt"><code class="chip" id="totp-secret"></code> <a id="totp-url" class="small" style="color:var(--accent-light)">open in app</a></p>
+        <div class="flex mt"><input class="form-input" id="totp-code" maxlength="6" placeholder="000000" style="width:140px;font-family:var(--font-mono)">
+        <button class="btn btn-primary" id="totp-enable">Confirm</button></div>
+      </div>
+    </div>
+    <div id="totp-on" class="hidden">
+      <p class="mb"><span class="badge badge-success">2FA enabled</span></p>
+      <div class="flex"><input class="form-input" id="totp-pass" type="password" placeholder="Password" style="max-width:240px">
+      <button class="btn btn-danger" id="totp-disable">Disable 2FA</button></div>
+    </div>
+  </div>
+
+  <div class="glass mb" style="border-radius:var(--radius-md);padding:28px">
+    <h3 class="mb">Discord</h3>
+    <div id="dc-box"></div>
+  </div>
+
+  <div class="glass mb" style="border-radius:var(--radius-md);padding:28px">
+    <h3 class="mb">Notifications</h3>
+    <div class="perm-grid" id="np-grid">
+      <label><input type="checkbox" data-np="on_down" checked> Server down</label>
+      <label><input type="checkbox" data-np="on_crash" checked> Crashes &amp; alerts</label>
+      <label><input type="checkbox" data-np="on_up"> Server up</label>
+      <label><input type="checkbox" data-np="on_backup"> Backups</label>
+      <label><input type="checkbox" data-np="on_login"> Logins</label>
+    </div>
+    <div class="flex mt">
+      <button class="btn btn-primary" id="np-save">Save preferences</button>
+      <button class="btn btn-outline" id="np-push">🔔 Enable browser push</button>
+    </div>
+  </div>
+
+  <div class="glass mb" style="border-radius:var(--radius-md);padding:28px">
+    <h3 class="mb">Active sessions</h3>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Device</th><th>IP</th><th>Last used</th><th></th></tr></thead>
+    <tbody id="sess-body"></tbody></table></div>
+    <button class="btn btn-danger mt" id="sess-all">Sign out everywhere</button>
+  </div>
+</main>
+
+<script src="/js/app.js"></script>
+<script>
+const { esc, toast, relTime } = App;
+const $ = (id) => document.getElementById(id);
+let ME;
+
+(async () => {
+  ME = await App.requireAuth();
+  if (!ME) return;
+  App.initBell($('bell-mount'));
+  App.initPalette();
+  if (location.hash === '#must-change' || ME.must_change_password) $('must-banner').classList.remove('hidden');
+
+  $('p-user').value = ME.username;
+  $('p-email').value = ME.email || '';
+  $('p-lang').value = App.lang;
+  const tzs = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : ['UTC', 'Europe/Vienna', 'Europe/Berlin']);
+  $('p-tz').innerHTML = '<option value="">Browser default</option>' + tzs.map(z => `<option ${z === ME.timezone ? 'selected' : ''}>${z}</option>`).join('');
+
+  $('p-save').onclick = async () => {
+    if ($('p-lang').value !== App.lang) App.setLang($('p-lang').value);
+    await App.put('/api/me/profile', { email: $('p-email').value, timezone: $('p-tz').value })
+      .then(() => toast('Saved', 'success')).catch(e => toast(e.message, 'error'));
+  };
+
+  $('pw-new').addEventListener('input', (e) => {
+    const v = e.target.value; let s = 0;
+    if (v.length >= 8) s++; if (v.length >= 12) s++;
+    if (/[A-Z]/.test(v) && /[a-z]/.test(v)) s++; if (/\d/.test(v)) s++; if (/[^A-Za-z0-9]/.test(v)) s++;
+    const L = ['','Weak','Fair','Good','Strong','Excellent'], Cc = ['','#ef4444','#f59e0b','#eab308','#10b981','#10b981'];
+    $('pw-strength').innerHTML = v ? `Strength: <b style="color:${Cc[s]}">${L[s]}</b>` : '';
+  });
+  $('pw-save').onclick = async () => {
+    try {
+      await App.post('/api/me/password', { current_password: $('pw-cur').value, password: $('pw-new').value });
+      toast('Password changed — please sign in again', 'success');
+      setTimeout(() => App.logout(), 1200);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // TOTP
+  $(ME.totp_enabled ? 'totp-on' : 'totp-off').classList.remove('hidden');
+  $('totp-setup').onclick = async () => {
+    const r = await App.post('/api/me/totp/setup');
+    $('totp-confirm').classList.remove('hidden');
+    $('totp-secret').textContent = r.secret;
+    $('totp-url').href = r.url;
+  };
+  $('totp-enable').onclick = async () => {
+    await App.post('/api/me/totp/enable', { code: $('totp-code').value })
+      .then(() => { toast('2FA enabled', 'success'); location.reload(); }).catch(e => toast(e.message, 'error'));
+  };
+  $('totp-disable').onclick = async () => {
+    await App.post('/api/me/totp/disable', { password: $('totp-pass').value })
+      .then(() => { toast('2FA disabled', 'success'); location.reload(); }).catch(e => toast(e.message, 'error'));
+  };
+
+  // Discord
+  $('dc-box').innerHTML = ME.discord_id
+    ? `<p class="mb">Linked to <b>${esc(ME.discord_username)}</b>. You can sign in with Discord.</p><button class="btn btn-danger" id="dc-unlink">Unlink</button>`
+    : `<p class="small mb">Link your Discord account to sign in with Discord.</p><a class="btn btn-outline" href="/api/oauth/discord/login">Link Discord account</a>
+       <p class="small mt">Note: linking works through the normal Discord sign-in; if your Discord isn't linked yet an admin must enable auto-create, or contact your admin.</p>`;
+  const unl = $('dc-unlink');
+  if (unl) unl.onclick = async () => { await App.del('/api/me/discord/link'); toast('Unlinked', 'success'); location.reload(); };
+
+  // Notification prefs (global, server 0)
+  const prefs = await App.get('/api/notification-prefs').catch(() => []);
+  const g = (prefs || []).find(p => p.server_id === 0);
+  if (g) document.querySelectorAll('[data-np]').forEach(i => i.checked = g[i.dataset.np]);
+  $('np-save').onclick = async () => {
+    const body = { server_id: 0 };
+    document.querySelectorAll('[data-np]').forEach(i => body[i.dataset.np] = i.checked);
+    await App.post('/api/notification-prefs', body).then(() => toast('Saved', 'success')).catch(e => toast(e.message, 'error'));
+  };
+  await App.initBanners(ME, $('main'));
+  $('np-push').onclick = () => App.enablePush().catch(e => toast(e.message, 'error'));
+
+  // Sessions
+  const loadSessions = async () => {
+    const sess = await App.get('/api/me/sessions') || [];
+    $('sess-body').innerHTML = sess.map(s => `<tr>
+      <td class="small" style="max-width:340px;overflow:hidden;text-overflow:ellipsis">${esc(s.user_agent || 'unknown')}</td>
+      <td class="small">${esc(s.ip)}</td><td class="small">${relTime(s.last_used_at)}</td>
+      <td><button class="btn btn-danger" style="padding:4px 12px" data-rv="${s.ID}">Revoke</button></td></tr>`).join('');
+    $('sess-body').querySelectorAll('[data-rv]').forEach(n => n.onclick = async () => {
+      await App.del('/api/me/sessions/' + n.dataset.rv); loadSessions();
+    });
+  };
+  loadSessions();
+  $('sess-all').onclick = async () => {
+    if (!(await App.confirmDialog('Sign out everywhere', 'All sessions including this one are revoked.'))) return;
+    await App.del('/api/me/sessions'); App.logout();
+  };
+})();
+</script>
+</body>
+</html>

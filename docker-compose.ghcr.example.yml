@@ -1,22 +1,51 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: dgsmgt-db
+    restart: always
+    environment:
+      - POSTGRES_USER=dgsmgt
+      - POSTGRES_PASSWORD=change_me
+      - POSTGRES_DB=dgsmgt
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dgsmgt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   dgsmgt:
     image: ghcr.io/arumes31/dgsmgt:latest
     container_name: dgsmgt
     restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
     volumes:
-      - db_data:/app/data
+      - backup_data:/app/backups
+      - log_data:/app/serverlogs
+      # Same absolute path on host and in container (binds resolve host-side)
+      - /opt/dgsmgt/serverdata:/opt/dgsmgt/serverdata
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - DATABASE_URL=/app/data/dgsmgt.db
-      - JWT_SECRET=change_me_in_production
+      - DATABASE_URL=host=postgres user=dgsmgt password=change_me dbname=dgsmgt port=5432 sslmode=disable
+      - JWT_SECRET=generate_a_long_random_secret
       - ADMIN_USER=admin
-      - ADMIN_PASSWORD=admin
+      - ADMIN_PASSWORD=change_me_too
       - TRUST_PROXY=false
-    # Note: Ensure you run 'docker login ghcr.io' first if the repository is private
+      - BASE_URL=https://panel.example.com
+      - SERVER_GAME_PORTRANGE=25000-30000
+      - SERVER_DATA_PATH=/opt/dgsmgt/serverdata
+      # Optional: Discord login
+      # - DISCORD_CLIENT_ID=...
+      # - DISCORD_CLIENT_SECRET=...
+      # - DISCORD_REDIRECT_URL=https://panel.example.com/api/oauth/discord/callback
+      # Optional: SMTP, S3/SFTP backup targets — see README
 
 volumes:
-  db_data:
+  pg_data:
+  backup_data:
+  log_data:

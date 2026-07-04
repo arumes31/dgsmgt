@@ -4,9 +4,9 @@ import (
 	"dgsmgt/internal/auth"
 	"dgsmgt/internal/db"
 	"dgsmgt/internal/models"
+	"gorm.io/gorm"
 	"log"
 	"os"
-	"gorm.io/gorm"
 )
 
 var (
@@ -95,7 +95,9 @@ func assignAccess() {
 
 	var s []models.Server
 	database.Find(&s)
-	if len(s) < 3 { return }
+	if len(s) < 3 {
+		return
+	}
 
 	if admin.ID != 0 {
 		for _, server := range s {

@@ -1,93 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DGSMgt | Secure Gateway</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <style>
-        :root { 
-            --bg: #020617; 
-            --accent: #6366f1; 
-        }
-        body { 
-            background: var(--bg); 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            margin: 0; 
-            color: white; 
-            font-family: 'Outfit', -apple-system, sans-serif;
-            overflow: hidden;
-        }
-        .mesh {
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
-            z-index: 0;
-        }
-        .container {
-            position: relative;
-            z-index: 10;
-            text-align: center;
-            animation: fadeIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .logo {
-            font-size: 40px;
-            font-weight: 800;
-            margin-bottom: 40px;
-            letter-spacing: -0.04em;
-            background: linear-gradient(135deg, #fff 0%, #6366f1 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .loader {
-            width: 40px;
-            height: 40px;
-            margin: 0 auto;
-            position: relative;
-        }
-        .loader div {
-            box-sizing: border-box;
-            display: block;
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            margin: 4px;
-            border: 3px solid #6366f1;
-            border-radius: 50%;
-            animation: loader 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-            border-color: #6366f1 transparent transparent transparent;
-        }
-        .loader div:nth-child(1) { animation-delay: -0.45s; }
-        .loader div:nth-child(2) { animation-delay: -0.3s; }
-        .loader div:nth-child(3) { animation-delay: -0.15s; }
-        @keyframes loader {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn { 
-            from { opacity: 0; transform: scale(0.95); } 
-            to { opacity: 1; transform: scale(1); } 
-        }
-    </style>
-    <script>
-        window.onload = () => {
-            setTimeout(() => {
-                const token = localStorage.getItem('token');
-                window.location.replace(token ? '/dashboard.html' : '/login.html');
-            }, 800);
-        };
-    </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DGSMgt</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/app2.css">
 </head>
 <body>
-    <div class="mesh"></div>
-    <div class="container">
-        <div class="logo">DGSMgt</div>
-        <div class="loader"><div></div><div></div><div></div><div></div></div>
-    </div>
+<div class="mesh-bg"></div>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
+  <div class="glass" style="border-radius:var(--radius-lg);padding:40px;text-align:center">
+    <h1 class="text-gradient">⚡ DGSMgt</h1>
+    <p class="text-secondary">Redirecting…</p>
+  </div>
+</div>
+<script>
+  location.replace(localStorage.getItem('token') || localStorage.getItem('refresh_token') ? '/dashboard.html' : '/login.html');
+</script>
 </body>
 </html>

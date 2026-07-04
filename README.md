@@ -2,97 +2,123 @@
 
 A modern, lightweight game server management panel built with Go and plain HTML/JavaScript.
 
-## Features
+## Features (v2)
 
-- **Premium UI/UX**: Ultra-modern glassmorphism design with fluid animations and Outfit/Inter typography.
-- **Zero Dependencies**: No complex frontend build steps, no node_modules, no external CDNs (all assets local).
-- **100% Test Coverage**: Full mission-critical reliability with 100% statement coverage across all packages.
-- **Docker Integration**: Direct integration with Docker Engine API for container management.
-- **RBAC (Role-Based Access Control)**:
-  - **Admins**: Full control over users, servers, and assignments.
-  - **Users**: Access only to assigned servers with specific permissions (Start, Stop, Restart, View Logs).
-- **Real-time Monitoring**: Live log streaming via WebSockets and container metrics.
-- **Secure**: JWT-based authentication with bcrypt password hashing and secure HTTP headers.
-- **CI/CD**: Fully automated pipeline with GitHub Actions:
-  - **Quality**: Golangci-lint for unified code style.
-  - **Security**: Gosec for automated security scanning.
-  - **Tests**: Automated unit tests on every push (100% coverage enforced).
-  - **Auto-deployment**: Automated Docker image builds pushed to GitHub Container Registry (GHCR).
+### Server management
+- **One-click game templates**: Minecraft (itzg), Valheim, ARK, Rust, Palworld, Terraria, Factorio, Satisfactory, Project Zomboid, 7 Days to Die, V Rising, Enshrouded, CS2/CS:GO/TF2/L4D2/GMod/ARMA3/DayZ and the whole **LinuxGSM** family (130+ games), plus community template URLs.
+- **Automatic port allocation** from a configurable range (`SERVER_GAME_PORTRANGE=25000-30000`), with `{PORT0}`-style env substitution and port-conflict detection.
+- Full server lifecycle: create, **edit/recreate**, redeploy (pull latest with live progress), clone, rename, adopt existing containers, orphan detection.
+- Actions: start / stop / restart / **kill / pause / unpause**, bulk actions with `depends_on` ordering, stacks (shared network multi-container groups).
+- Per-server stop timeout & stop signal, restart policy, **CPU/memory limits**, network selection, folders & icons.
+- **Trash with restore** — deleting keeps volumes and config; permanent purge is superadmin-only.
+- Health checks (Docker healthcheck surfaced), crash detection with **auto-restart + backoff** and crash-loop protection, OOM-kill badges.
+
+### Console & logs
+- **Interactive console** (attach/stdin or **Source RCON**) with command history, saved snippets and permission gating.
+- Live logs with stdout/stderr distinction, ANSI colors, regex filter & highlighting, tail selection, timestamps, pause-autoscroll, fullscreen, download, optional **log persistence** to disk.
+- **Log alerts**: regex patterns that trigger notifications.
+
+### Files & backups
+- **File manager** per server (permission-gated): browse, edit (5 MB editor), upload, download (tar), extract archives, mkdir/move/delete — works through the Docker API, no host path access needed.
+- **Backups**: manual + cron-scheduled, retention, restore, download; targets **local / S3 / SFTP**.
+
+### Monitoring
+- Parsed live metrics (CPU%, memory, network) over WebSocket, **historical charts** (samples stored in DB), availability %, disk usage per volume.
+
+### Auth & security
+- Short-lived access tokens + **rotating refresh sessions**, logout & device list with revoke.
+- **TOTP two-factor auth** (optional), **Discord OAuth login/linking**, invitation links, email password reset.
+- Brute-force lockout with admin unlock view, reverse-proxy/**Cloudflare-aware client IPs** (`TRUST_PROXY`), last-admin protection, forced password change, disabled accounts.
+- Superadmin (root) tier for permanent deletes, panel settings and node management.
+
+### RBAC
+- 8 granular per-server permissions (start/stop/restart/logs/**commands/config/files/backups**), presets (Viewer/Operator/Owner), **groups**, bulk assignment, expiring access, effective **permission matrix** view.
+
+### Notifications
+- **Discord webhook**, generic webhooks, Telegram, ntfy, Gotify, SMTP email, **browser Web Push**, in-app notification center with per-user/per-server preferences.
+
+### Platform
+- **PostgreSQL** database (SQLite removed from the runtime), **multi-node** Docker hosts (TCP/TLS), audit log v2 (filters, pagination, CSV export, IP/UA, diffs, retention), diagnostics, update notifier, request IDs, panic recovery, graceful shutdown.
+- Frontend: glassmorphism UI with dark/light theme, EN/DE i18n, command palette (Ctrl+K), keyboard shortcuts, toasts, optimistic actions, PWA + push.
+- CI: lint, gosec, tests, **multi-arch images (amd64 + arm64)** pushed to GHCR.
 
 ## Tech Stack
 
-- **Backend**: Go 1.25+
-- **Frontend**: Plain HTML5, CSS3, Vanilla JavaScript (ES6+)
-- **Security**: Gosec, golangci-lint, JWT
-- **Database**: SQLite (via GORM)
-- **Container Engine**: Docker Engine API
-- **Deployment**: GitHub Actions, GHCR, Docker
+- **Backend**: Go 1.25+, gorilla/mux, GORM + PostgreSQL, Docker Engine API
+- **Frontend**: Plain HTML5/CSS3/ES6+ (no build step, no CDNs)
+- **Security**: JWT + refresh sessions, bcrypt, TOTP, gosec, golangci-lint
 
 ## Getting Started
 
-### Prerequisites
+### Docker Compose (recommended)
 
-- Go 1.25+
-- Docker Engine (running and accessible via local socket)
+```bash
+git clone https://github.com/arumes31/dgsmgt && cd dgsmgt
+docker compose up -d --build
+```
 
-### Development Setup
+Open `http://localhost:8080` — default credentials `admin` / `admin` (you'll be forced to change the password on first login).
 
-1. **Clone the repository**
-2. **Run the server**:
-   ```bash
-   go run cmd/server/main.go
-   ```
-   Default admin credentials: `admin` / `admin` (change via environment variables `ADMIN_USER` and `ADMIN_PASSWORD`).
-3. **Access the portal**:
-   Open `http://localhost:8080` in your browser.
+The bundled compose file starts PostgreSQL and the panel and mounts the Docker socket.
 
-### Build
+### Pre-built image (GHCR)
 
-1. **Build Backend**:
-   ```bash
-   go build -o dgsmgt ./cmd/server/main.go
-   ```
-
-## Deployment
-
-### Using Docker Compose (GHCR)
-
-You can run the latest pre-built image from the GitHub Container Registry:
-
-1. Create a `docker-compose.yml` file:
-   ```yaml
-   version: '3.8'
-   services:
-     dgsmgt:
-       image: ghcr.io/arumes31/dgsmgt:latest
-       container_name: dgsmgt
-       restart: always
-       ports:
-         - "8080:8080"
-       volumes:
-         - db_data:/app/data
-         - /var/run/docker.sock:/var/run/docker.sock
-       environment:
-         - DATABASE_URL=/app/data/dgsmgt.db
-         - JWT_SECRET=your_secure_secret
-         - ADMIN_USER=admin
-         - ADMIN_PASSWORD=your_admin_password
-   volumes:
-     db_data:
-   ```
-2. Run the command:
-   ```bash
-   docker-compose up -d
-   ```
+```yaml
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment: [POSTGRES_USER=dgsmgt, POSTGRES_PASSWORD=change_me, POSTGRES_DB=dgsmgt]
+    volumes: [pg_data:/var/lib/postgresql/data]
+  dgsmgt:
+    image: ghcr.io/arumes31/dgsmgt:latest
+    ports: ["8080:8080"]
+    volumes:
+      - backups:/app/backups
+      - ./serverdata:/app/serverdata
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DATABASE_URL=host=postgres user=dgsmgt password=change_me dbname=dgsmgt sslmode=disable
+      - JWT_SECRET=generate_a_long_random_secret
+      - SERVER_GAME_PORTRANGE=25000-30000
+volumes: { pg_data: {}, backups: {} }
+```
 
 ## Configuration
 
-Environment variables:
-- `DATABASE_URL`: Path to SQLite DB (default: `dgsmgt.db`)
-- `JWT_SECRET`: Secret for JWT signing
-- `ADMIN_USER`: Initial admin username
-- `ADMIN_PASSWORD`: Initial admin password
-- `TRUST_PROXY`: Set to `true` if behind a reverse proxy
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | localhost DSN | **PostgreSQL** DSN (`host=... user=... password=... dbname=...`) |
+| `JWT_SECRET` | – | Secret for JWT signing (set it!) |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | admin/admin | Initial superadmin |
+| `TRUST_PROXY` | false | Honor `CF-Connecting-IP` / `X-Forwarded-For` behind a proxy/Cloudflare |
+| `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | 15m / 720h | Session lifetimes |
+| `SERVER_GAME_PORTRANGE` | 25000-30000 | Host port range for template deployments |
+| `SERVER_DATA_PATH` | ./serverdata | Host dir for auto-created game volumes |
+| `BACKUP_PATH` | ./backups | Local backup storage |
+| `DISCORD_CLIENT_ID/SECRET/REDIRECT_URL` | – | Discord OAuth login (`DISCORD_AUTO_CREATE=true` to auto-provision) |
+| `SMTP_HOST/PORT/USER/PASS/FROM` | – | Email (password reset + notifications) |
+| `S3_ENDPOINT/ACCESS_KEY/SECRET_KEY/BUCKET` | – | S3 backup target |
+| `SFTP_HOST/PORT/USER/PASSWORD/PATH` | – | SFTP backup target |
+| `AUDIT_RETENTION_DAYS` / `METRIC_RETENTION_DAYS` | 90 / 14 | Data retention |
+| `BASE_URL` | http://localhost:8080 | Public URL (emails, invites, OAuth) |
+
+### Discord login setup
+1. Create an application at https://discord.com/developers → OAuth2.
+2. Add redirect: `https://your-panel/api/oauth/discord/callback`.
+3. Set `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URL`.
+4. Users link Discord in their profile, then can sign in with Discord (or set `DISCORD_AUTO_CREATE=true`).
+
+### Security note
+Mounting `/var/run/docker.sock` grants the panel root-equivalent access to the host. For hardened setups put a [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) in between and point `DOCKER_HOST` at it, or use a dedicated VM/node.
+
+## Development
+
+```bash
+docker run -d -p 5432:5432 -e POSTGRES_USER=dgsmgt -e POSTGRES_PASSWORD=dgsmgt -e POSTGRES_DB=dgsmgt postgres:17-alpine
+DATABASE_URL="host=localhost user=dgsmgt password=dgsmgt dbname=dgsmgt sslmode=disable" go run ./cmd/server
+```
+
+Tests: `go test ./...` (DB tests run against in-memory SQLite via a dialector override; the runtime is Postgres-only).
 
 ## License
 

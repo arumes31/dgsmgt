@@ -22,7 +22,7 @@ func TestIPMiddleware(t *testing.T) {
 			t.Errorf("Expected IP 1.2.3.4:0, got %s", r.RemoteAddr)
 		}
 	})
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("X-Forwarded-For", "1.2.3.4, 5.6.7.8")
 	w := httptest.NewRecorder()
@@ -60,32 +60,32 @@ func TestLoggingMiddleware(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	
+
 	mw(next).ServeHTTP(w, req)
 }
 
 func TestAuthMiddleware(t *testing.T) {
 	secret := "test-secret"
 	mw := AuthMiddleware(secret)
-	
-	token, _ := auth.GenerateToken(&models.User{Username: "test"}, secret)
-	
+
+	token, _ := auth.GenerateToken(&models.User{Username: "test"}, secret, time.Hour)
+
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := r.Context().Value(ClaimsKey).(*auth.Claims)
 		if claims.Username != "test" {
 			t.Errorf("Expected username test, got %s", claims.Username)
 		}
 	})
-	
+
 	// Bearer Token
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mw(next).ServeHTTP(w, req)
-	
+
 	// Cookie
 	req = httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: token})
@@ -117,7 +117,7 @@ func TestAdminMiddleware(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	
+
 	// Is Admin
 	claims := &auth.Claims{IsAdmin: true}
 	req := httptest.NewRequest("GET", "/", nil)
@@ -127,7 +127,7 @@ func TestAdminMiddleware(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected 200, got %d", w.Code)
 	}
-	
+
 	// Is Not Admin
 	claims = &auth.Claims{IsAdmin: false}
 	req = httptest.NewRequest("GET", "/", nil)
@@ -144,17 +144,17 @@ func TestRateLimitMiddleware(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "1.2.3.4:1234"
-	
+
 	// First request - OK
 	w := httptest.NewRecorder()
 	mw(next).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected 200, got %d", w.Code)
 	}
-	
+
 	// Second request immediately - Rate limited
 	w = httptest.NewRecorder()
 	mw(next).ServeHTTP(w, req)
@@ -180,7 +180,7 @@ func TestPayloadLimitMiddleware(t *testing.T) {
 			t.Error("Expected error for oversized payload")
 		}
 	})
-	
+
 	req := httptest.NewRequest("POST", "/", strings.NewReader("too long payload"))
 	w := httptest.NewRecorder()
 	mw(next).ServeHTTP(w, req)
@@ -193,16 +193,16 @@ func TestRateLimitMiddlewareCleanup(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "1.2.3.4:1234"
-	
+
 	// Add a client
 	mw(next).ServeHTTP(httptest.NewRecorder(), req)
-	
+
 	// Wait for cleanup
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Test shutdown
 	select {
 	case RateLimitShutdown <- struct{}{}:

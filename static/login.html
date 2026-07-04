@@ -1,169 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | DGSMgt Portal</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="stylesheet" href="/css/app.css">
-    <style>
-        .login-page {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #020617;
-            overflow: hidden;
-        }
-
-        .login-bg-media {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.4;
-            filter: blur(5px);
-            z-index: 0;
-        }
-
-        .login-mesh {
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            background: radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.2) 0%, transparent 50%),
-                        radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.2) 0%, transparent 50%);
-        }
-
-        .login-card-container {
-            position: relative;
-            z-index: 10;
-            width: 100%;
-            max-width: 440px;
-            margin: 24px;
-        }
-
-        .premium-card {
-            padding: 48px;
-            border-radius: var(--radius-lg);
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(40px) saturate(200%);
-            -webkit-backdrop-filter: blur(40px) saturate(200%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.8), 
-                        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-            animation: scaleIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        .logo-container {
-            background: var(--accent-gradient);
-            padding: 2px;
-            border-radius: 20px;
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 32px;
-            box-shadow: 0 20px 40px -10px var(--accent-glow);
-        }
-
-        .logo-inner {
-            background: #0f172a;
-            width: 100%;
-            height: 100%;
-            border-radius: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        .logo-img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        .login-title {
-            font-size: 32px;
-            margin-bottom: 8px;
-            text-align: center;
-        }
-
-        .login-subtitle {
-            text-align: center;
-            color: var(--fg-secondary);
-            font-size: 15px;
-            margin-bottom: 40px;
-            font-weight: 500;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DGSMgt — Login</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/app2.css">
 </head>
 <body>
-    <div class="login-page">
-        <!-- Local Premium Assets -->
-        <img src="/assets/bg.png" class="login-bg-media" alt="">
-        <div class="login-mesh"></div>
-
-        <div class="login-card-container">
-            <div class="premium-card">
-                <div class="reveal-stagger">
-                    <div class="logo-container">
-                        <div class="logo-inner">
-                            <img src="/assets/logo.png" class="logo-img" alt="DGSMgt Logo">
-                        </div>
-                    </div>
-
-                    <h1 class="login-title text-gradient">DGSMgt Portal</h1>
-                    <p class="login-subtitle">Secure Instance Management</p>
-
-                    <form id="loginForm" style="display: flex; flex-direction: column; gap: 24px;">
-                        <div class="form-group">
-                            <label class="form-label" for="username">Identity</label>
-                            <input type="text" id="username" class="form-input" placeholder="Enter username" required autocomplete="username">
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label" for="password">Security Key</label>
-                            <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
-                        </div>
-
-                        <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 16px; margin-top: 8px;">
-                            <span>Authenticate</span>
-                        </button>
-                    </form>
-
-                    <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--glass-border); text-align: center;">
-                        <span class="text-muted" style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">
-                            DGSMgt Core v1.2 &bull; SSL Secured
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="mesh-bg"></div>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="glass reveal" style="border-radius:var(--radius-lg);padding:48px;width:440px;max-width:95vw">
+    <div style="text-align:center;margin-bottom:32px">
+      <img src="/assets/logo.png" alt="DGSMgt" style="height:56px" onerror="this.style.display='none'">
+      <h1 class="text-gradient" style="font-size:28px;margin-top:12px">DGSMgt</h1>
+      <p class="text-secondary" style="font-size:14px">Docker Game Server Management</p>
     </div>
 
-    <script src="/js/auth.js"></script>
-    <script>
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            const btn = document.getElementById('submitBtn');
-            DGSMgt.ui.setLoading('submitBtn', true, 'Authenticating...');
+    <!-- Login step -->
+    <form id="f-login">
+      <label class="form-label">Username</label>
+      <input class="form-input" id="username" autocomplete="username" required>
+      <label class="form-label" style="margin-top:16px">Password</label>
+      <input class="form-input" type="password" id="password" autocomplete="current-password" required>
+      <button class="btn btn-primary" style="width:100%;margin-top:24px" type="submit">Sign in</button>
+      <button class="btn btn-outline" style="width:100%;margin-top:12px" type="button" id="btn-discord">Sign in with Discord</button>
+      <p style="text-align:center;margin-top:16px"><a href="#" id="lnk-forgot" class="small" style="color:var(--accent-light)">Forgot password?</a></p>
+    </form>
 
-            try {
-                await DGSMgt.auth.login(username, password);
-                DGSMgt.ui.toast('Authentication successful', 'success');
-                setTimeout(() => {
-                    window.location.href = '/dashboard.html';
-                }, 800);
-            } catch (err) {
-                DGSMgt.ui.toast(err.message || 'Access Denied', 'error');
-                DGSMgt.ui.setLoading('submitBtn', false);
-            }
-        });
-    </script>
+    <!-- TOTP step -->
+    <form id="f-totp" class="hidden">
+      <p class="text-secondary" style="margin-bottom:16px">Enter the 6-digit code from your authenticator app.</p>
+      <input class="form-input" id="totp-code" inputmode="numeric" maxlength="6" placeholder="000000"
+             style="text-align:center;font-size:24px;letter-spacing:8px;font-family:var(--font-mono)">
+      <button class="btn btn-primary" style="width:100%;margin-top:24px" type="submit">Verify</button>
+    </form>
+
+    <!-- Invitation step -->
+    <form id="f-invite" class="hidden">
+      <p class="text-secondary" style="margin-bottom:16px">You've been invited — create your account.</p>
+      <label class="form-label">Username</label>
+      <input class="form-input" id="inv-user" minlength="3" required>
+      <label class="form-label" style="margin-top:12px">Email (optional)</label>
+      <input class="form-input" id="inv-email" type="email">
+      <label class="form-label" style="margin-top:12px">Password (min 8 chars)</label>
+      <input class="form-input" id="inv-pass" type="password" minlength="8" required>
+      <div id="inv-strength" class="small" style="margin-top:6px"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:24px" type="submit">Create account</button>
+    </form>
+
+    <!-- Reset step -->
+    <form id="f-reset" class="hidden">
+      <p class="text-secondary" style="margin-bottom:16px">Choose a new password.</p>
+      <input class="form-input" id="rs-pass" type="password" minlength="8" placeholder="New password" required>
+      <button class="btn btn-primary" style="width:100%;margin-top:24px" type="submit">Reset password</button>
+    </form>
+
+    <div id="err" class="hidden" style="margin-top:20px;padding:12px 16px;border-radius:12px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:var(--danger);font-size:13.5px"></div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const showErr = (m) => { $('err').textContent = m; $('err').classList.remove('hidden'); };
+const show = (id) => { ['f-login','f-totp','f-invite','f-reset'].forEach(f => $(f).classList.add('hidden')); $(id).classList.remove('hidden'); };
+let pendingToken = null, inviteToken = null, resetToken = null;
+
+const finishLogin = (data) => {
+  App.tokens.access = data.token;
+  App.tokens.refresh = data.refresh_token;
+  location.href = data.must_change_password ? '/profile.html#must-change' : '/dashboard.html';
+};
+
+// OAuth redirect / invite / reset fragments
+const frag = new URLSearchParams(location.hash.slice(1));
+if (frag.get('token')) {
+  finishLogin({ token: frag.get('token'), refresh_token: frag.get('refresh') });
+} else if (frag.get('invite')) {
+  inviteToken = frag.get('invite'); show('f-invite');
+} else if (frag.get('reset')) {
+  resetToken = frag.get('reset'); show('f-reset');
+}
+if (new URLSearchParams(location.search).get('error') === 'discord_not_linked')
+  showErr('This Discord account is not linked to any user. Log in normally and link it in your profile.');
+
+$('f-login').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('err').classList.add('hidden');
+  try {
+    const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: $('username').value, password: $('password').value }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Login failed');
+    if (j.data.totp_required) { pendingToken = j.data.pending_token; show('f-totp'); $('totp-code').focus(); return; }
+    finishLogin(j.data);
+  } catch (err) { showErr(err.message); }
+});
+
+$('f-totp').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('err').classList.add('hidden');
+  try {
+    const res = await fetch('/api/login/totp', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pending_token: pendingToken, code: $('totp-code').value }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Invalid code');
+    finishLogin(j.data);
+  } catch (err) { showErr(err.message); }
+});
+
+$('f-invite').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('err').classList.add('hidden');
+  try {
+    const res = await fetch('/api/invitations/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: inviteToken, username: $('inv-user').value, email: $('inv-email').value, password: $('inv-pass').value }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Failed');
+    App.toast('Account created — sign in now', 'success');
+    location.hash = ''; show('f-login');
+  } catch (err) { showErr(err.message); }
+});
+
+$('f-reset').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('err').classList.add('hidden');
+  try {
+    const res = await fetch('/api/password-reset/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: resetToken, password: $('rs-pass').value }) });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Failed');
+    App.toast('Password reset — sign in now', 'success');
+    location.hash = ''; show('f-login');
+  } catch (err) { showErr(err.message); }
+});
+
+$('lnk-forgot').onclick = async (e) => {
+  e.preventDefault();
+  const email = prompt('Enter your account email:');
+  if (!email) return;
+  await fetch('/api/password-reset/request', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }) });
+  App.toast('If that email exists, a reset link has been sent.', 'info');
+};
+
+$('btn-discord').onclick = () => location.href = '/api/oauth/discord/login';
+
+$('inv-pass').addEventListener('input', (e) => {
+  const v = e.target.value;
+  let s = 0;
+  if (v.length >= 8) s++; if (v.length >= 12) s++;
+  if (/[A-Z]/.test(v) && /[a-z]/.test(v)) s++;
+  if (/\d/.test(v)) s++; if (/[^A-Za-z0-9]/.test(v)) s++;
+  const labels = ['', 'Weak', 'Fair', 'Good', 'Strong', 'Excellent'];
+  const colors = ['', '#ef4444', '#f59e0b', '#eab308', '#10b981', '#10b981'];
+  $('inv-strength').innerHTML = v ? `Strength: <b style="color:${colors[s]}">${labels[s]}</b>` : '';
+});
+</script>
 </body>
 </html>

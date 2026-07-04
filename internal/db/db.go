@@ -2,24 +2,38 @@ package db
 
 import (
 	"dgsmgt/internal/models"
-	"github.com/glebarez/sqlite"
+
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
 
+// Open opens the database from a Postgres DSN. SQLite has been removed from
+// the runtime; DATABASE_URL must be a Postgres DSN or URL.
+var Open = func(dsn string) (gorm.Dialector, error) {
+	return postgres.Open(dsn), nil
+}
+
 func InitDB(dsn string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	dialector, err := Open(dsn)
+	if err != nil {
+		return nil, err
+	}
+	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
 
-	// Auto-migrate the models
-	err = db.AutoMigrate(&models.User{}, &models.Server{}, &models.UserServer{})
-	if err != nil {
+	if err := Migrate(db); err != nil {
 		return nil, err
 	}
 
 	DB = db
 	return db, nil
+}
+
+// Migrate runs AutoMigrate for all models.
+func Migrate(db *gorm.DB) error {
+	return db.AutoMigrate(models.All()...)
 }
