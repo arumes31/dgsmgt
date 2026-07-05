@@ -76,6 +76,9 @@ func (m *Manager) Register(node models.Node) error {
 	}
 
 	m.mu.Lock()
+	if old, ok := m.services[node.ID]; ok {
+		old.Close() // re-registering a node: don't leak the previous client
+	}
 	m.services[node.ID] = NewServiceWithClient(cli)
 	m.mu.Unlock()
 	return nil
@@ -87,7 +90,10 @@ func (m *Manager) Remove(nodeID uint) {
 		return
 	}
 	m.mu.Lock()
-	delete(m.services, nodeID)
+	if old, ok := m.services[nodeID]; ok {
+		old.Close()
+		delete(m.services, nodeID)
+	}
 	m.mu.Unlock()
 }
 

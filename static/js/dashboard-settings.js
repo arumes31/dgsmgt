@@ -111,10 +111,12 @@ async function tabSettings(c) {
     const dlg = App.modal('Redeploy: pulling latest image', `<div class="console" style="height:300px" id="rd-log"></div>`);
     const log = dlg.querySelector('#rd-log');
     const sock = App.ws(`/api/servers/${s.ID}/redeploy`);
+    sockets.push(sock); // so closeSockets() (tab switch / detail close) tears it down
+    sock.onerror = () => { log.innerHTML += '<div class="hl-error">Connection error</div>'; log.scrollTop = log.scrollHeight; };
     sock.onmessage = (e) => {
       try {
         const j = JSON.parse(e.data);
-        if (j.done) { log.innerHTML += '<div class="hl-join">✔ Redeployed successfully</div>'; toast('Redeployed', 'success'); refreshDetailHead(); return; }
+        if (j.done) { log.innerHTML += '<div class="hl-join">✔ Redeployed successfully</div>'; toast('Redeployed', 'success'); refreshDetailHead(); sock.close(); return; }
         if (j.error) { log.innerHTML += `<div class="hl-error">${esc(j.error)}</div>`; return; }
         log.innerHTML += `<div>${esc(j.status || e.data)} ${esc(j.progress || '')}</div>`;
       } catch { log.innerHTML += `<div>${esc(e.data)}</div>`; }

@@ -146,8 +146,11 @@ func (a *API) DownloadLogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Coerce any non-integer tail (empty, "abc", …) to the default so an
+	// unparseable value can't fall through to Docker's "all" and stream the
+	// container's entire log history.
 	tail := r.URL.Query().Get("tail")
-	if tail == "" {
+	if _, err := strconv.Atoi(tail); err != nil {
 		tail = "5000"
 	}
 	svc, ok := a.svcFor(w, server)

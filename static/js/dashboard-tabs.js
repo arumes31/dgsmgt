@@ -74,7 +74,15 @@ function tabConsole(c) {
   $('con-filter').oninput = (e) => { try { filterRe = e.target.value ? new RegExp(e.target.value, 'i') : null; e.target.style.borderColor=''; } catch { e.target.style.borderColor = 'var(--danger)'; } };
   $('con-download').onclick = () => App.download(`/api/logs/${current.container_id}/download`, `${current.name}.log`);
   $('con-full').onclick = () => con.classList.toggle('fullscreen');
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') con.classList.remove('fullscreen'); });
+  // Register the Escape-to-exit-fullscreen handler once for the page. A
+  // per-tabConsole listener accumulates on every tab switch (and closes over a
+  // stale `con`); this single handler acts on whichever console is fullscreen.
+  if (!window.__conFsKeyHandler) {
+    window.__conFsKeyHandler = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.querySelector('.console.fullscreen')?.classList.remove('fullscreen');
+    });
+  }
 
   const send = () => {
     const cmd = $('con-cmd').value.trim();

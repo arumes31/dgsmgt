@@ -204,9 +204,15 @@ func (s *Service) Recreate(ctx context.Context, oldContainerID string, o CreateO
 		staged = true
 	}
 
+	// Rollback/cleanup must survive a cancelled request ctx — a client
+	// disconnect or timeout can be the very reason Create/Start failed, and the
+	// documented "previous container restored" guarantee would otherwise become
+	// a silent no-op. Run these ops on a fresh background context.
 	rollback := func() {
 		if staged {
-			_ = s.cli.ContainerRename(ctx, oldContainerID, oldName)
+			rbctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			_ = s.cli.ContainerRename(rbctx, oldContainerID, oldName)
 		}
 	}
 
@@ -220,9 +226,11 @@ func (s *Service) Recreate(ctx context.Context, oldContainerID string, o CreateO
 		// Free the ports held by the old container, then bring up the new one.
 		_ = s.cli.ContainerStop(ctx, oldContainerID, container.StopOptions{})
 		if err := s.Start(ctx, newID); err != nil {
-			_ = s.Delete(ctx, newID, true)
+			rbctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			_ = s.Delete(rbctx, newID, true)
 			rollback()
-			_ = s.cli.ContainerStart(ctx, oldContainerID, container.StartOptions{})
+			_ = s.cli.ContainerStart(rbctx, oldContainerID, container.StartOptions{})
 			return "", fmt.Errorf("new container failed to start; previous container restored: %w", err)
 		}
 	}

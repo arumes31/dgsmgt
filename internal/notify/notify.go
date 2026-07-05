@@ -346,6 +346,10 @@ func (n *Notifier) SendEmail(to, subject, body string) {
 	if n.cfg.SMTPHost == "" {
 		return
 	}
+	// Strip CR/LF from header values to block SMTP header injection via an
+	// attacker-influenced subject (e.g. a server name) or recipient address.
+	subject = strings.ReplaceAll(strings.ReplaceAll(subject, "\r", " "), "\n", " ")
+	to = strings.ReplaceAll(strings.ReplaceAll(to, "\r", ""), "\n", "")
 	addr := n.cfg.SMTPHost + ":" + n.cfg.SMTPPort
 	msg := []byte("From: " + n.cfg.SMTPFrom + "\r\n" +
 		"To: " + to + "\r\n" +

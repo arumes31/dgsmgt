@@ -86,6 +86,15 @@ func NewServiceWithClient(cli DockerClient) *Service {
 	return &Service{cli: cli}
 }
 
+// Close releases the underlying Docker client's connection pool if it supports
+// it (the concrete *client.Client does). Called when a node is re-registered
+// or removed so the old transport's connections/goroutines don't leak.
+func (s *Service) Close() {
+	if c, ok := s.cli.(io.Closer); ok {
+		_ = c.Close()
+	}
+}
+
 // HumanizeUptime renders a duration since start as "3d 4h 12m".
 func HumanizeUptime(startedAt string) string {
 	t, err := time.Parse(time.RFC3339Nano, startedAt)

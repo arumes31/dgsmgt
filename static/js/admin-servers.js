@@ -51,9 +51,9 @@ async function openTemplateWizard() {
     const q = dlg.querySelector('#tw-q').value.toLowerCase();
     const cat = dlg.querySelector('#tw-cat').value;
     grid.innerHTML = templates.filter(t => (!q || t.name.toLowerCase().includes(q)) && (!cat || t.category === cat))
-      .map(t => `<div class="glass glass-card" style="padding:16px;border-radius:var(--radius-sm);cursor:pointer;${sel && sel.id === t.id ? 'border-color:var(--accent)' : ''}" data-tid="${t.id}">
+      .map(t => `<div class="glass glass-card" style="padding:16px;border-radius:var(--radius-sm);cursor:pointer;${sel && sel.id === t.id ? 'border-color:var(--accent)' : ''}" data-tid="${esc(t.id)}">
         <div style="font-size:24px">${App.gameIcon(t.icon, t.image)}</div><b>${esc(t.name)}</b>
-        <div class="small">${esc(t.image.split(':')[0])}</div></div>`).join('');
+        <div class="small">${esc((t.image || '').split(':')[0])}</div></div>`).join('');
     grid.querySelectorAll('[data-tid]').forEach(n => n.onclick = () => {
       sel = templates.find(x => x.id === n.dataset.tid);
       dlg.querySelector('#tw-form').classList.remove('hidden');
@@ -63,8 +63,9 @@ async function openTemplateWizard() {
         const i = e.indexOf('=');
         return twEnvRow(e.slice(0, i), e.slice(i + 1));
       }).join('');
-      dlg.querySelector('#tw-ports').textContent = sel.ports.length
-        ? (sel.fixed_ports ? `Ports (fixed by game): ${sel.ports.join(', ')}` : `Container ports ${sel.ports.join(', ')} — host ports auto-allocated from the configured range`)
+      const selPorts = sel.ports || [];
+      dlg.querySelector('#tw-ports').textContent = selPorts.length
+        ? (sel.fixed_ports ? `Ports (fixed by game): ${selPorts.join(', ')}` : `Container ports ${selPorts.join(', ')} — host ports auto-allocated from the configured range`)
         : 'No ports predefined — add them after deploy.';
       render();
     });

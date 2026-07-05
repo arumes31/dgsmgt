@@ -59,11 +59,13 @@ func (m *Manager) Run(ctx context.Context, server *models.Server, note string) (
 		Status:     "running",
 		Target:     server.BackupTarget,
 		Note:       note,
-		FileName:   fmt.Sprintf("%s-%s.tar.gz", server.Name, time.Now().Format("20060102-150405")),
 	}
 	if err := m.db.Create(rec).Error; err != nil {
 		return nil, err
 	}
+	// Include the unique backup ID so two backups of the same server started in
+	// the same second (e.g. scheduled + manual) can't collide on one file path.
+	rec.FileName = fmt.Sprintf("%s-%s-%d.tar.gz", server.Name, time.Now().Format("20060102-150405"), rec.ID)
 
 	err := m.create(ctx, server, rec)
 	if err != nil {

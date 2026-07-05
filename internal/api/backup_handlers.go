@@ -51,7 +51,9 @@ func (a *API) CreateBackupHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Note string `json:"note" validate:"omitempty,max=200"`
 	}
-	_ = a.decodeAndValidate(w, r, &input)
+	if !a.decodeAndValidate(w, r, &input) {
+		return
+	}
 
 	srv := *server
 	go func() {

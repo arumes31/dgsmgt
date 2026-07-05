@@ -41,7 +41,9 @@ func (s *Scheduler) Reload() {
 	if s.runner != nil {
 		s.runner.Stop()
 	}
-	s.runner = cron.New()
+	// Recover wraps each job so a panic in runAction/runBackup is logged instead
+	// of propagating and crashing the whole panel process.
+	s.runner = cron.New(cron.WithChain(cron.Recover(cron.DefaultLogger)))
 
 	var servers []models.Server
 	s.db.Find(&servers)
