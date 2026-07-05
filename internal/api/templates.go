@@ -214,10 +214,19 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ports := []string{}
 	used := a.usedHostPorts(r, input.NodeID)
-	hostPorts, err := a.allocateFrom(used, len(allPorts))
-	if err != nil {
-		utils.BadRequest(w, err.Error())
-		return
+	// FixedPorts templates bind host==container ports (assigned in the loop
+	// below) and draw nothing from the dynamic pool, so allocating there would
+	// wrongly fail a fixed-port deploy whenever the pool is exhausted.
+	var hostPorts []int
+	if tpl.FixedPorts {
+		hostPorts = make([]int, len(allPorts))
+	} else {
+		var err error
+		hostPorts, err = a.allocateFrom(used, len(allPorts))
+		if err != nil {
+			utils.BadRequest(w, err.Error())
+			return
+		}
 	}
 	assigned := map[string]int{} // container port -> host port
 	for i, cp := range allPorts {

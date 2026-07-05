@@ -96,9 +96,11 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.loginAttempts.Delete(key)
-
 	// Two-factor: return a pending token, client must call /login/totp.
+	// Do NOT clear the brute-force counter here — LoginTOTPHandler shares this
+	// key, so resetting it on password success would let a password-knowing
+	// attacker loop /login -> /login/totp and brute-force the 6-digit code
+	// without ever tripping the lockout.
 	if user.TOTPEnabled {
 		pending, err := auth.GeneratePendingToken(user, a.jwtSecret)
 		if err != nil {
@@ -108,6 +110,8 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		utils.Success(w, map[string]interface{}{"totp_required": true, "pending_token": pending})
 		return
 	}
+
+	a.loginAttempts.Delete(key)
 
 	tokens, err := a.issueTokens(r, user)
 	if err != nil {

@@ -39,7 +39,7 @@ const App = (() => {
   applyTheme();
 
   // ---------- Helpers ----------
-  const esc = (s) => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
+  const esc = (s) => (s ?? '').toString().replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtBytes = (b) => {
     if (b == null || isNaN(b)) return '–';
     const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; b = Number(b);

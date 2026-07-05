@@ -38,8 +38,13 @@ func CleanContainerPath(p string) (string, error) {
 		p = "/" + p
 	}
 	cleaned := path.Clean(p)
-	if strings.Contains(cleaned, "..") {
-		return "", fmt.Errorf("invalid path")
+	// Reject traversal by path segment, not substring: path.Clean already
+	// collapses any real ".." against the forced-absolute root, and a substring
+	// check would wrongly reject legitimate names like "world..bak".
+	for _, seg := range strings.Split(cleaned, "/") {
+		if seg == ".." {
+			return "", fmt.Errorf("invalid path")
+		}
 	}
 	return cleaned, nil
 }
@@ -66,15 +71,18 @@ func (s *Service) ListDir(ctx context.Context, containerID, dir string) ([]FileE
 		}
 		mode := fields[0]
 		size, _ := strconv.ParseInt(fields[4], 10, 64)
-		// name = everything after the 8th field (dates contain spaces)
-		nameIdx := strings.Index(line, fields[8])
-		name := line
-		if nameIdx >= 0 {
-			name = line[nameIdx:]
-			parts := strings.SplitN(name, " ", 2)
-			if len(parts) == 2 {
-				name = parts[1]
+		// name = everything after the first 8 fields
+		// (mode links uid gid size month day time). Skip exactly 8
+		// whitespace-separated fields so names containing spaces survive
+		// intact (the old SplitN dropped the first word of such names).
+		name := strings.TrimLeft(line, " ")
+		for i := 0; i < 8; i++ {
+			sp := strings.IndexByte(name, ' ')
+			if sp < 0 {
+				name = ""
+				break
 			}
+			name = strings.TrimLeft(name[sp+1:], " ")
 		}
 		// symlinks: "name -> target"
 		if i := strings.Index(name, " -> "); i > 0 {
@@ -224,6 +232,9 @@ func (s *Service) UploadFile(ctx context.Context, containerID, destDir, fileName
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
+	// Close the read end when CopyToContainer returns so the writer goroutine
+	// above unblocks (no goroutine/fd leak) if the copy errors before draining pr.
+	defer func() { _ = pr.Close() }()
 	return s.cli.CopyToContainer(ctx, containerID, destDir, pr, containerTypesCopyOpts())
 }
 

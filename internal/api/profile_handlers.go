@@ -40,11 +40,15 @@ func (a *API) UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	if !a.decodeAndValidate(w, r, &input) {
 		return
 	}
+	// Struct-based Updates only writes non-zero fields, so an omitted email or
+	// timezone is left unchanged rather than blanked. Clobbering email would
+	// silently break password-reset-by-email for that account.
 	if err := a.db.Model(&models.User{}).Where("id = ?", claims.UserID).
-		Updates(map[string]interface{}{"email": input.Email, "timezone": input.Timezone}).Error; err != nil {
+		Updates(models.User{Email: input.Email, Timezone: input.Timezone}).Error; err != nil {
 		a.internalError(w, r, err, "Failed to update profile")
 		return
 	}
+	a.audit(r, claims, "update_profile", auditOpts{Details: "Updated profile", Success: true})
 	utils.Success(w, map[string]string{"status": "ok"})
 }
 

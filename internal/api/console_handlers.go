@@ -245,9 +245,15 @@ func (a *API) CreateLogAlertHandler(w http.ResponseWriter, r *http.Request) {
 func (a *API) DeleteLogAlertHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	claims := claimsFrom(r)
-	_, server, status := a.getAccess(claims, vars["id"])
+	perms, server, status := a.getAccess(claims, vars["id"])
 	if status != http.StatusOK {
 		writeAccessStatus(w, status)
+		return
+	}
+	// Match CreateLogAlertHandler: deleting an alert requires log-view rights,
+	// not merely some grant on the server.
+	if !perms.CanViewLogs {
+		utils.Forbidden(w, "Permission denied")
 		return
 	}
 	if err := a.db.Where("id = ? AND server_id = ?", vars["alertId"], server.ID).

@@ -3,6 +3,7 @@ package api
 import (
 	"dgsmgt/internal/models"
 	"dgsmgt/internal/utils"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -46,7 +47,10 @@ func (a *API) GetSettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) SetSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	var input map[string]string
-	if !a.decodeAndValidate(w, r, &input) {
+	// A map cannot go through decodeAndValidate: validate.Struct rejects any
+	// non-struct, so that path would 400 every settings update. Decode directly.
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.BadRequest(w, "Invalid request body")
 		return
 	}
 	for k, v := range input {

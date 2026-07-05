@@ -6,6 +6,7 @@ package notify
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/smtp"
@@ -208,7 +209,15 @@ func (n *Notifier) wantsEvent(userID uint, ev Event) bool {
 func (n *Notifier) post(urlStr, contentType string, body []byte) {
 	resp, err := n.http.Post(urlStr, contentType, bytes.NewReader(body))
 	if err != nil {
-		n.logger.Warn("notification post failed", zap.String("url", redact(urlStr)), zap.Error(err))
+		// url.Error.Error() embeds the full request URL (path + query), which
+		// can carry bot tokens / webhook secrets — log only the underlying
+		// transport error so it doesn't undo redact(urlStr).
+		logErr := err
+		var uerr *url.Error
+		if errors.As(err, &uerr) && uerr.Err != nil {
+			logErr = uerr.Err
+		}
+		n.logger.Warn("notification post failed", zap.String("url", redact(urlStr)), zap.Error(logErr))
 		return
 	}
 	_ = resp.Body.Close()

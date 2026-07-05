@@ -60,6 +60,13 @@ func (a *API) DiscordCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err, "Discord authentication failed")
 		return
 	}
+	// discord_id is a non-unique column defaulting to "" for every non-Discord
+	// user, so an empty id here would match (and log in as) the first such
+	// account. Never query by an empty Discord id.
+	if du.ID == "" {
+		a.internalError(w, r, fmt.Errorf("discord returned an empty account id"), "Discord authentication failed")
+		return
+	}
 
 	var user models.User
 	err = a.db.Where("discord_id = ?", du.ID).First(&user).Error
@@ -119,6 +126,10 @@ func (a *API) DiscordLinkHandler(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err, "Discord link failed")
 		return
 	}
+	if du.ID == "" {
+		a.internalError(w, r, fmt.Errorf("discord returned an empty account id"), "Discord link failed")
+		return
+	}
 	if err := a.db.Model(&models.User{}).Where("id = ?", claims.UserID).
 		Updates(map[string]interface{}{"discord_id": du.ID, "discord_username": du.Username}).Error; err != nil {
 		a.internalError(w, r, err, "Failed to link Discord")
@@ -135,6 +146,7 @@ func (a *API) DiscordUnlinkHandler(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err, "Failed to unlink Discord")
 		return
 	}
+	a.audit(r, claims, "discord_unlinked", auditOpts{Details: "Unlinked Discord account", Success: true})
 	utils.Success(w, map[string]string{"status": "ok"})
 }
 
@@ -291,8 +303,22 @@ func (a *API) ConfirmPasswordResetHandler(w http.ResponseWriter, r *http.Request
 		a.internalError(w, r, err, "Error hashing password")
 		return
 	}
-	a.db.Model(&models.User{}).Where("id = ?", pr.UserID).Update("password_hash", hash)
-	a.db.Model(&pr).Update("used", true)
+	// Consume the token atomically (compare-and-set on used) BEFORE applying the
+	// password, so two concurrent requests can't both reset and a failed
+	// consume-write can't leave the token replayable within its TTL.
+	res := a.db.Model(&models.PasswordReset{}).Where("id = ? AND used = ?", pr.ID, false).Update("used", true)
+	if res.Error != nil {
+		a.internalError(w, r, res.Error, "Failed to consume reset token")
+		return
+	}
+	if res.RowsAffected == 0 {
+		utils.Forbidden(w, "Invalid or expired reset token")
+		return
+	}
+	if err := a.db.Model(&models.User{}).Where("id = ?", pr.UserID).Update("password_hash", hash).Error; err != nil {
+		a.internalError(w, r, err, "Failed to update password")
+		return
+	}
 	_ = auth.RevokeAllSessions(a.db, pr.UserID)
 	a.audit(r, &auth.Claims{UserID: pr.UserID}, "password_reset", auditOpts{Details: "Password reset via email", Success: true})
 	utils.Success(w, map[string]string{"status": "ok"})

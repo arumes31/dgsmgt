@@ -213,7 +213,11 @@ func (m *Manager) Restore(ctx context.Context, server *models.Server, rec *model
 		}()
 
 		parent := path.Dir(dest)
-		if err := svc.UploadTar(ctx, server.ContainerID, parent, pr); err != nil {
+		err := svc.UploadTar(ctx, server.ContainerID, parent, pr)
+		// Close the read end so streamSubTar unblocks (no goroutine/file leak)
+		// if UploadTar returned before draining the pipe.
+		_ = pr.Close()
+		if err != nil {
 			return fmt.Errorf("restoring %s: %w", dest, err)
 		}
 	}

@@ -146,7 +146,10 @@ func (a *API) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err, "Failed to update user")
 		return
 	}
-	if input.Password != "" || input.Disabled {
+	// Revoke sessions on password/disable AND on any admin-status change:
+	// the IsAdmin claim is baked into the access token, so a demotion must
+	// invalidate outstanding tokens or the user keeps admin until TTL expiry.
+	if input.Password != "" || input.Disabled || before.IsAdmin != user.IsAdmin {
 		_ = auth.RevokeAllSessions(a.db, user.ID)
 	}
 
