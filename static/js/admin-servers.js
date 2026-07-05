@@ -38,6 +38,10 @@ async function openTemplateWizard() {
       <h4 id="tw-sel"></h4><p class="small" id="tw-notes"></p>
       <div class="flex mt"><input class="form-input grow" id="tw-name" placeholder="Server name (e.g. mc-survival)">
       <input class="form-input" id="tw-image" placeholder="image override (optional)" style="flex:1"></div>
+      <label class="form-label mt">Environment (template defaults — edit before deploy)</label>
+      <div id="tw-env"></div>
+      <button class="btn btn-outline mt" type="button" id="tw-env-add">＋ Variable</button>
+      <p class="small">{PORT0}… and {RCONPW} are filled in automatically at deploy.</p>
       <label class="small flex mt"><input type="checkbox" id="tw-start" checked> Start after deploy</label>
       <p class="small mt" id="tw-ports"></p>
       <button class="btn btn-primary mt" id="tw-go">🚀 Deploy</button></div>`);
@@ -55,6 +59,10 @@ async function openTemplateWizard() {
       dlg.querySelector('#tw-form').classList.remove('hidden');
       dlg.querySelector('#tw-sel').textContent = sel.name;
       dlg.querySelector('#tw-notes').textContent = sel.notes || '';
+      dlg.querySelector('#tw-env').innerHTML = (sel.env || []).map(e => {
+        const i = e.indexOf('=');
+        return twEnvRow(e.slice(0, i), e.slice(i + 1));
+      }).join('');
       dlg.querySelector('#tw-ports').textContent = sel.ports.length
         ? (sel.fixed_ports ? `Ports (fixed by game): ${sel.ports.join(', ')}` : `Container ports ${sel.ports.join(', ')} — host ports auto-allocated from the configured range`)
         : 'No ports predefined — add them after deploy.';
@@ -62,15 +70,27 @@ async function openTemplateWizard() {
     });
   };
   render();
+  function twEnvRow(k = '', v = '') {
+    const secret = /pass|secret|token|key/i.test(k) && !/{RCONPW}/.test(v);
+    return `<div class="kv-row"><input class="form-input" placeholder="KEY" value="${esc(k)}">
+      <input class="form-input" placeholder="value" type="${secret ? 'password' : 'text'}" value="${esc(v)}">
+      <button class="btn btn-danger btn-icon" type="button" onclick="this.parentNode.remove()">✕</button></div>`;
+  }
+  dlg.querySelector('#tw-env-add').onclick = () => dlg.querySelector('#tw-env').insertAdjacentHTML('beforeend', twEnvRow());
   dlg.querySelector('#tw-q').oninput = render;
   dlg.querySelector('#tw-cat').onchange = render;
   dlg.querySelector('#tw-go').onclick = async () => {
     if (!sel) return;
+    const env = [...dlg.querySelectorAll('#tw-env .kv-row')].map(r => {
+      const [k, v] = r.querySelectorAll('input');
+      return k.value ? `${k.value}=${v.value}` : null;
+    }).filter(Boolean);
     const btn = dlg.querySelector('#tw-go'); btn.disabled = true; btn.textContent = 'Deploying (pulling image)…';
     try {
       const res = await App.post('/api/admin/servers/from-template', {
         template_id: sel.id, name: dlg.querySelector('#tw-name').value,
         image: dlg.querySelector('#tw-image').value, start: dlg.querySelector('#tw-start').checked,
+        env, // edited values override template defaults by name
       });
       toast(`Deployed ${res.server.name} — ports: ${res.allocated_ports.join(', ')}`, 'success');
       dlg.close(); dlg.remove(); serversSec();
@@ -91,7 +111,8 @@ async function openCustomWizard() {
     <textarea class="form-input mt" id="cw-ports" rows="2" placeholder="Ports: 25565:25565 or 25565:25565/udp (one per line)"></textarea>
     <div class="small" id="cw-conflict"></div>
     <textarea class="form-input mt" id="cw-env" rows="3" placeholder="ENV: KEY=value (one per line)"></textarea>
-    <textarea class="form-input mt" id="cw-vol" rows="2" placeholder="Volumes: /host/path:/container/path (one per line)"></textarea>`,
+    <textarea class="form-input mt" id="cw-vol" rows="2" placeholder="Volumes: /host/path:/container/path (one per line)"></textarea>
+    <textarea class="form-input mt" id="cw-cmd" rows="2" placeholder="Command override: one argument per line (optional, e.g. launch flags)"></textarea>`,
     `<button class="btn btn-primary" id="cw-go">Create</button>`);
   dlg.querySelector('#cw-tags').onclick = async () => {
     const img = dlg.querySelector('#cw-image').value.split(':')[0];
@@ -118,6 +139,7 @@ async function openCustomWizard() {
         ports: dlg.querySelector('#cw-ports').value.split('\n').map(x => x.trim()).filter(Boolean),
         env: dlg.querySelector('#cw-env').value.split('\n').map(x => x.trim()).filter(Boolean),
         volumes: dlg.querySelector('#cw-vol').value.split('\n').map(x => x.trim()).filter(Boolean),
+        cmd: dlg.querySelector('#cw-cmd').value.split('\n').map(x => x.trim()).filter(Boolean),
         network_mode: dlg.querySelector('#cw-net').value, restart_policy: dlg.querySelector('#cw-restart').value,
       });
       toast('Server created', 'success'); dlg.close(); dlg.remove(); serversSec();

@@ -51,37 +51,52 @@ var Send = func(host string, port int, password, command string) (string, error)
 	}
 
 	// Execute. Large responses are fragmented into multiple 4096-byte
-	// packets (Source games' "status", Rust, ...). The standard way to find
-	// the end is a sentinel: servers answer an extra RESPONSE_VALUE request
-	// after all fragments of the previous command, in order.
+	// packets (Source games' "status", Rust, ...). A sentinel exec sent
+	// after the first full-size fragment marks the end — but it must go out
+	// on its own: vanilla Minecraft reads one TCP segment at a time and
+	// drops the connection when two packets coalesce into it.
 	if err := writePacket(conn, execID, typeExecCommand, command); err != nil {
 		return "", fmt.Errorf("rcon exec write: %w", err)
 	}
-	sentinelSent := writePacket(conn, sentinelID, typeResponse, "") == nil
 
 	var out bytes.Buffer
+	sentinelSent := false
 	for {
+		// Fresh budget per packet: once data flows, only inter-packet gaps
+		// count, so servers that never echo the sentinel (Rust) cost at most
+		// one short stall after the real response.
+		wait := 10 * time.Second
+		if out.Len() > 0 {
+			wait = 3 * time.Second
+		}
+		_ = conn.SetDeadline(time.Now().Add(wait))
 		id, ptype, body, err := readPacket(conn)
 		if err != nil {
-			// Servers that don't answer the sentinel (rare) still delivered
-			// the response; return what we have on timeout after data.
-			if out.Len() > 0 && !sentinelSent {
+			// Whatever arrived before the timeout is the response.
+			if out.Len() > 0 {
 				return out.String(), nil
 			}
 			return "", fmt.Errorf("rcon exec read: %w", err)
 		}
-		// Sentinel echo (or Minecraft's "Unknown request" reply) ends the response.
+		// Sentinel echo (or an "Unknown request" reply) ends the response.
 		if id == sentinelID || strings.Contains(body, "Unknown request") {
 			return out.String(), nil
 		}
-		if id == execID && ptype == typeResponse {
+		// id 0 responses are console broadcasts — Rust delivers command
+		// output that way instead of echoing the request id.
+		isResponse := ptype == typeResponse && (id == execID || id == 0)
+		if isResponse {
 			out.WriteString(body)
-			if !sentinelSent {
-				return out.String(), nil
-			}
 		}
 		if out.Len() > maxResponseSize {
 			return out.String(), nil
+		}
+		if isResponse && !sentinelSent {
+			if len(body) < 4096 {
+				return out.String(), nil // small single packet: complete
+			}
+			// Possible fragment: probe for the end with an empty exec.
+			sentinelSent = writePacket(conn, sentinelID, typeExecCommand, "") == nil
 		}
 	}
 }

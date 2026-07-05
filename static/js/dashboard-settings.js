@@ -40,6 +40,8 @@ async function tabSettings(c) {
       <button class="btn btn-outline mt" type="button" id="s-env-add">＋ Variable</button></div>
     <div class="mt"><label class="form-label">Volumes (host:container, one per line)</label>
       <textarea class="form-input" name="volumes" rows="3" style="font-family:var(--font-mono)">${esc((cfg.volumes || []).join('\n'))}</textarea></div>
+    <div class="mt"><label class="form-label">Command override (one argument per line, empty = image default)</label>
+      <textarea class="form-input" name="cmd" rows="2" style="font-family:var(--font-mono)">${esc((cfg.cmd || []).join('\n'))}</textarea></div>
     <div class="mt perm-grid">
       <label><input type="checkbox" name="auto_restart" ${s.auto_restart ? 'checked' : ''}> Auto-restart on crash</label>
       <label><input type="checkbox" name="persist_logs" ${s.persist_logs ? 'checked' : ''}> Persist logs to disk</label>
@@ -86,6 +88,7 @@ async function tabSettings(c) {
       node_id: s.node_id, depends_on: s.depends_on, stack_id: s.stack_id,
       ports: f.get('ports').split('\n').map(x => x.trim()).filter(Boolean),
       env, volumes: f.get('volumes').split('\n').map(x => x.trim()).filter(Boolean),
+      cmd: f.get('cmd').split('\n').map(x => x.trim()).filter(Boolean),
       restart_policy: f.get('restart_policy'), cpu_limit: +f.get('cpu_limit'), memory_limit_mb: +f.get('memory_limit_mb'),
       stop_timeout: +f.get('stop_timeout'), stop_signal: f.get('stop_signal'),
       console_mode: f.get('console_mode'), rcon_host: f.get('rcon_host'), rcon_port: +f.get('rcon_port') || 0,

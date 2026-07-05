@@ -162,7 +162,8 @@ func (a *API) UpdateServerHandler(w http.ResponseWriter, r *http.Request) {
 		before.StopTimeout != server.StopTimeout ||
 		fmt.Sprint(oldOpts.Ports) != fmt.Sprint(newOpts.Ports) ||
 		fmt.Sprint(oldOpts.Env) != fmt.Sprint(newOpts.Env) ||
-		fmt.Sprint(oldOpts.Volumes) != fmt.Sprint(newOpts.Volumes)
+		fmt.Sprint(oldOpts.Volumes) != fmt.Sprint(newOpts.Volumes) ||
+		fmt.Sprint(oldOpts.Cmd) != fmt.Sprint(newOpts.Cmd)
 
 	svc, ok := a.svcFor(w, &server)
 	if !ok {
