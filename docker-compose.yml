@@ -48,6 +48,7 @@ services:
       # Game server deployment
       - SERVER_GAME_PORTRANGE=${SERVER_GAME_PORTRANGE:-25000-30000}
       - SERVER_DATA_PATH=${SERVER_DATA_PATH:-/opt/dgsmgt/serverdata}
+      - RCON_HOST=${RCON_HOST:-host.docker.internal}
       # Auth (optional)
       - ACCESS_TOKEN_TTL=${ACCESS_TOKEN_TTL:-15m}
       - REFRESH_TOKEN_TTL=${REFRESH_TOKEN_TTL:-720h}

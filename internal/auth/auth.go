@@ -6,6 +6,7 @@ import (
 	"dgsmgt/internal/models"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -175,6 +176,57 @@ func RevokeAllSessions(database *gorm.DB, userID uint) error {
 		Update("revoked", true).Error; err != nil {
 		return err
 	}
-	return database.Model(&models.User{}).Where("id = ?", userID).
+	err := database.Model(&models.User{}).Where("id = ?", userID).
 		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
+	if err == nil {
+		invalidateTokenVersion(userID)
+	}
+	return err
+}
+
+// tokenVersionTTL bounds staleness for out-of-band token_version changes;
+// in-process revocations invalidate the cache immediately.
+const tokenVersionTTL = 30 * time.Second
+
+type tokenVersionEntry struct {
+	version int
+	at      time.Time
+}
+
+var tokenVersions = struct {
+	mu sync.Mutex
+	m  map[uint]tokenVersionEntry
+}{m: map[uint]tokenVersionEntry{}}
+
+// ValidateTokenVersion reports whether the claims carry the user's current
+// token version. Versions are cached briefly so this per-request check does
+// not add a DB round-trip to every authenticated call. A missing user is
+// invalid; a DB failure is returned so the caller can fail open instead of
+// mass-401ing during a transient outage.
+func ValidateTokenVersion(database *gorm.DB, c *Claims) (bool, error) {
+	now := time.Now()
+	tokenVersions.mu.Lock()
+	e, ok := tokenVersions.m[c.UserID]
+	tokenVersions.mu.Unlock()
+	if !ok || now.Sub(e.at) > tokenVersionTTL {
+		var u models.User
+		if err := database.Select("token_version").Where("id = ?", c.UserID).
+			Take(&u).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return false, err
+		}
+		e = tokenVersionEntry{version: u.TokenVersion, at: now}
+		tokenVersions.mu.Lock()
+		tokenVersions.m[c.UserID] = e
+		tokenVersions.mu.Unlock()
+	}
+	return e.version == c.TokenVersion, nil
+}
+
+func invalidateTokenVersion(userID uint) {
+	tokenVersions.mu.Lock()
+	delete(tokenVersions.m, userID)
+	tokenVersions.mu.Unlock()
 }

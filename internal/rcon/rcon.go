@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 )
 
@@ -59,44 +58,62 @@ var Send = func(host string, port int, password, command string) (string, error)
 		return "", fmt.Errorf("rcon exec write: %w", err)
 	}
 
-	var out bytes.Buffer
+	// Output keyed by the exec id is the command's reply; id-0 packets are
+	// console broadcasts (Rust logs/chat) kept separately and used only when
+	// the command id itself never yields output — so unrelated broadcast
+	// lines can't pollute a real reply.
+	var out, broadcast bytes.Buffer
+	result := func() string {
+		if out.Len() > 0 {
+			return out.String()
+		}
+		return broadcast.String()
+	}
 	sentinelSent := false
 	for {
 		// Fresh budget per packet: once data flows, only inter-packet gaps
 		// count, so servers that never echo the sentinel (Rust) cost at most
 		// one short stall after the real response.
 		wait := 10 * time.Second
-		if out.Len() > 0 {
+		if out.Len() > 0 || broadcast.Len() > 0 {
 			wait = 3 * time.Second
 		}
 		_ = conn.SetDeadline(time.Now().Add(wait))
 		id, ptype, body, err := readPacket(conn)
 		if err != nil {
 			// Whatever arrived before the timeout is the response.
-			if out.Len() > 0 {
-				return out.String(), nil
+			if out.Len() > 0 || broadcast.Len() > 0 {
+				return result(), nil
 			}
 			return "", fmt.Errorf("rcon exec read: %w", err)
 		}
-		// Sentinel echo (or an "Unknown request" reply) ends the response.
-		if id == sentinelID || strings.Contains(body, "Unknown request") {
-			return out.String(), nil
+		if id == sentinelID {
+			return result(), nil
 		}
-		// id 0 responses are console broadcasts — Rust delivers command
-		// output that way instead of echoing the request id.
-		isResponse := ptype == typeResponse && (id == execID || id == 0)
-		if isResponse {
+		if ptype != typeResponse {
+			continue
+		}
+		switch id {
+		case execID:
 			out.WriteString(body)
-		}
-		if out.Len() > maxResponseSize {
-			return out.String(), nil
-		}
-		if isResponse && !sentinelSent {
-			if len(body) < 4096 {
-				return out.String(), nil // small single packet: complete
+			if out.Len() > maxResponseSize {
+				return result(), nil
 			}
-			// Possible fragment: probe for the end with an empty exec.
-			sentinelSent = writePacket(conn, sentinelID, typeExecCommand, "") == nil
+			if !sentinelSent {
+				// Bodies near the cap may be fragments — servers cap total
+				// packet size at 4096 (body ~4086) or body at 4096, so probe
+				// with a lone empty exec above ~4000 (sent separately: some
+				// servers can't parse coalesced packets).
+				if len(body) < 4000 {
+					return result(), nil // small single packet: complete
+				}
+				sentinelSent = writePacket(conn, sentinelID, typeExecCommand, "") == nil
+			}
+		case 0:
+			broadcast.WriteString(body)
+			if broadcast.Len() > maxResponseSize {
+				return result(), nil
+			}
 		}
 	}
 }

@@ -45,7 +45,7 @@ func (a *API) FileListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := svc.ListDir(r.Context(), server.ContainerID, dir)
 	if err != nil {
-		utils.BadRequest(w, "Cannot list directory: "+err.Error())
+		a.opError(w, r, err, "Cannot list directory")
 		return
 	}
 	utils.Success(w, map[string]interface{}{"path": dir, "entries": entries})
@@ -64,7 +64,7 @@ func (a *API) FileReadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := svc.ReadFile(r.Context(), server.ContainerID, p, maxEditableFileSize)
 	if err != nil {
-		utils.BadRequest(w, "Cannot read file: "+err.Error())
+		a.opError(w, r, err, "Cannot read file")
 		return
 	}
 	utils.Success(w, map[string]string{"path": p, "content": string(data)})
@@ -88,7 +88,7 @@ func (a *API) FileWriteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := svc.WriteFile(r.Context(), server.ContainerID, input.Path, []byte(input.Content)); err != nil {
-		utils.BadRequest(w, "Cannot write file: "+err.Error())
+		a.opError(w, r, err, "Cannot write file")
 		return
 	}
 	a.audit(r, claims, "file_write", auditOpts{Server: server, Details: input.Path, Success: true})
@@ -108,7 +108,7 @@ func (a *API) FileDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	rc, name, err := svc.DownloadTar(r.Context(), server.ContainerID, p)
 	if err != nil {
-		utils.BadRequest(w, "Cannot download: "+err.Error())
+		a.opError(w, r, err, "Cannot download")
 		return
 	}
 	defer func() { _ = rc.Close() }()
@@ -159,7 +159,7 @@ func (a *API) FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 				err = svc.UploadFile(r.Context(), server.ContainerID, dest, hdr.Filename, f, hdr.Size)
 				_ = f.Close()
 				if err != nil {
-					utils.BadRequest(w, "Upload failed for "+hdr.Filename+": "+err.Error())
+					a.opError(w, r, err, "Upload failed for "+hdr.Filename)
 					return
 				}
 				uploaded = append(uploaded, hdr.Filename)
@@ -198,7 +198,7 @@ func (a *API) FileExtractHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := svc.UploadTar(r.Context(), server.ContainerID, dest, file); err != nil {
-		utils.BadRequest(w, "Extract failed: "+err.Error())
+		a.opError(w, r, err, "Extract failed")
 		return
 	}
 	a.audit(r, claims, "file_extract", auditOpts{Server: server, Details: "Extracted archive to " + dest, Success: true})
@@ -221,7 +221,7 @@ func (a *API) FileDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := svc.DeletePath(r.Context(), server.ContainerID, input.Path); err != nil {
-		utils.BadRequest(w, "Delete failed: "+err.Error())
+		a.opError(w, r, err, "Delete failed")
 		return
 	}
 	a.audit(r, claims, "file_delete", auditOpts{Server: server, Details: input.Path, Success: true})
@@ -244,7 +244,7 @@ func (a *API) FileMkdirHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := svc.Mkdir(r.Context(), server.ContainerID, input.Path); err != nil {
-		utils.BadRequest(w, "mkdir failed: "+err.Error())
+		a.opError(w, r, err, "mkdir failed")
 		return
 	}
 	a.audit(r, claims, "file_mkdir", auditOpts{Server: server, Details: input.Path, Success: true})
@@ -268,7 +268,7 @@ func (a *API) FileMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := svc.MovePath(r.Context(), server.ContainerID, input.From, input.To); err != nil {
-		utils.BadRequest(w, "Move failed: "+err.Error())
+		a.opError(w, r, err, "Move failed")
 		return
 	}
 	a.audit(r, claims, "file_move", auditOpts{Server: server,

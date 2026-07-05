@@ -16,8 +16,8 @@ import (
 )
 
 // rconHostFor returns the address the panel uses to reach a published RCON
-// port: the Docker host for local deployments (host-gateway alias, see
-// docker-compose.yml), or the remote node's hostname.
+// port: the configured local Docker host (RCON_HOST, defaults to the
+// compose host-gateway alias) or the remote node's hostname.
 func (a *API) rconHostFor(nodeID uint) string {
 	if nodeID != 0 {
 		var n models.Node
@@ -29,9 +29,13 @@ func (a *API) rconHostFor(nodeID uint) string {
 			if host, _, err := net.SplitHostPort(n.Address); err == nil && host != "" {
 				return host
 			}
+			// Bare hostname/IP with no scheme and no port.
+			if n.Address != "" && !strings.Contains(n.Address, "://") {
+				return n.Address
+			}
 		}
 	}
-	return "host.docker.internal"
+	return a.cfg.RconHost
 }
 
 // ListTemplatesHandler returns built-in templates plus any community
@@ -120,8 +124,13 @@ func (a *API) usedHostPorts(r *http.Request, nodeID uint) map[int]bool {
 
 // allocatePorts picks n free host ports from the configured range.
 func (a *API) allocatePorts(r *http.Request, nodeID uint, n int) ([]int, error) {
+	return a.allocateFrom(a.usedHostPorts(r, nodeID), n)
+}
+
+// allocateFrom picks n free host ports given a node's used-port set (so
+// callers can reuse the set for their own conflict checks).
+func (a *API) allocateFrom(used map[int]bool, n int) ([]int, error) {
 	lo, hi := a.portRange()
-	used := a.usedHostPorts(r, nodeID)
 	out := []int{}
 	for p := lo; p <= hi && len(out) < n; p++ {
 		if !used[p] {
@@ -132,6 +141,17 @@ func (a *API) allocatePorts(r *http.Request, nodeID uint, n int) ([]int, error) 
 		return nil, fmt.Errorf("not enough free ports in range %d-%d", lo, hi)
 	}
 	return out, nil
+}
+
+// rconEnvName returns the template env variable that carries the RCON
+// password (the {RCONPW} token), e.g. RCON_PASSWORD or ADMIN_PASSWORD.
+func rconEnvName(tplEnv []string) string {
+	for _, e := range tplEnv {
+		if strings.Contains(e, "{RCONPW}") {
+			return strings.SplitN(e, "=", 2)[0]
+		}
+	}
+	return ""
 }
 
 // AllocatePortsHandler previews free ports: ?count=2&node_id=0
@@ -193,7 +213,8 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		allPorts = append(append([]string{}, tpl.Ports...), tpl.RconPort)
 	}
 	ports := []string{}
-	hostPorts, err := a.allocatePorts(r, input.NodeID, len(allPorts))
+	used := a.usedHostPorts(r, input.NodeID)
+	hostPorts, err := a.allocateFrom(used, len(allPorts))
 	if err != nil {
 		utils.BadRequest(w, err.Error())
 		return
@@ -209,6 +230,11 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		if tpl.FixedPorts {
 			// Game requires host port == container port (protocol constraint).
 			if v, err := strconv.Atoi(parts[0]); err == nil {
+				if used[v] {
+					utils.BadRequest(w, fmt.Sprintf(
+						"Host port %d is already in use on this node — this game needs its fixed ports free", v))
+					return
+				}
 				hp = v
 			}
 		} else if prev, ok := assigned[parts[0]]; ok {
@@ -260,6 +286,21 @@ func (a *API) DeployTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	if rconPassword != "" {
 		for j := range env {
 			env[j] = strings.ReplaceAll(env[j], "{RCONPW}", rconPassword)
+		}
+		// The stored password must match what the game actually received:
+		// the deploy wizard lets users override or delete the RCON env row.
+		if name := rconEnvName(tpl.Env); name != "" {
+			found := false
+			for _, e := range env {
+				if strings.HasPrefix(e, name+"=") {
+					rconPassword = strings.SplitN(e, "=", 2)[1]
+					found = true
+					break
+				}
+			}
+			if !found { // row deleted: restore it so the console keeps working
+				env = append(env, name+"="+rconPassword)
+			}
 		}
 	}
 

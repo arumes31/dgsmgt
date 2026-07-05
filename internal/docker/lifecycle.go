@@ -193,12 +193,15 @@ func (s *Service) Recreate(ctx context.Context, oldContainerID string, o CreateO
 	}
 
 	// Stage: move the old container aside so the new one can take its name.
+	// A failed rename must abort — creating would hit a name conflict while
+	// rollback has nothing to restore.
 	staged := false
 	if oldName != "" {
 		tmpName := fmt.Sprintf("%s-old-%d", o.Name, time.Now().Unix())
-		if err := s.cli.ContainerRename(ctx, oldContainerID, tmpName); err == nil {
-			staged = true
+		if err := s.cli.ContainerRename(ctx, oldContainerID, tmpName); err != nil {
+			return "", fmt.Errorf("staging old container aside: %w", err)
 		}
+		staged = true
 	}
 
 	rollback := func() {

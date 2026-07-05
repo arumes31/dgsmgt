@@ -291,29 +291,69 @@ func (m *Manager) applyRetention(server *models.Server) {
 	var old []models.Backup
 	m.db.Where("server_id = ? AND status = ?", server.ID, "done").
 		Order("created_at desc").Offset(server.BackupRetention).Find(&old)
+	// One shared remote connection for the whole batch: pruning N backups
+	// must not perform N SSH handshakes.
+	rc := &remoteClients{}
+	defer rc.close()
 	for _, b := range old {
-		m.DeleteBackup(&b)
+		m.deleteBackup(&b, rc)
+	}
+}
+
+// remoteClients lazily caches per-target connections so batch deletions
+// reuse one S3 client / SSH session instead of dialing per file. A failed
+// dial is remembered and not retried within the batch.
+type remoteClients struct {
+	s3        *minio.Client
+	s3Tried   bool
+	sftp      *sftp.Client
+	sftpConn  *ssh.Client
+	sftpTried bool
+}
+
+func (rc *remoteClients) close() {
+	if rc.sftp != nil {
+		_ = rc.sftp.Close()
+	}
+	if rc.sftpConn != nil {
+		_ = rc.sftpConn.Close()
 	}
 }
 
 // DeleteBackup removes the record, the local file and — for remote targets —
 // the uploaded object, so retention pruning cleans S3/SFTP too.
 func (m *Manager) DeleteBackup(b *models.Backup) {
+	rc := &remoteClients{}
+	defer rc.close()
+	m.deleteBackup(b, rc)
+}
+
+func (m *Manager) deleteBackup(b *models.Backup, rc *remoteClients) {
 	switch b.Target {
 	case "s3":
-		if cli, err := m.s3Client(); err == nil {
-			if err := cli.RemoveObject(context.Background(), m.cfg.S3Bucket, b.FileName,
+		if !rc.s3Tried {
+			rc.s3Tried = true
+			if cli, err := m.s3Client(); err == nil {
+				rc.s3 = cli
+			}
+		}
+		if rc.s3 != nil {
+			if err := rc.s3.RemoveObject(context.Background(), m.cfg.S3Bucket, b.FileName,
 				minio.RemoveObjectOptions{}); err != nil {
 				m.logger.Warn("failed to delete S3 backup object", zap.String("file", b.FileName), zap.Error(err))
 			}
 		}
 	case "sftp":
-		if cli, conn, err := m.sftpClient(); err == nil {
-			if err := cli.Remove(path.Join(m.cfg.SFTPPath, b.FileName)); err != nil {
+		if !rc.sftpTried {
+			rc.sftpTried = true
+			if cli, conn, err := m.sftpClient(); err == nil {
+				rc.sftp, rc.sftpConn = cli, conn
+			}
+		}
+		if rc.sftp != nil {
+			if err := rc.sftp.Remove(path.Join(m.cfg.SFTPPath, b.FileName)); err != nil {
 				m.logger.Warn("failed to delete SFTP backup file", zap.String("file", b.FileName), zap.Error(err))
 			}
-			_ = cli.Close()
-			_ = conn.Close()
 		}
 	}
 	_ = os.Remove(m.localPath(b.FileName))

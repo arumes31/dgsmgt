@@ -132,6 +132,16 @@ func (a *API) internalError(w http.ResponseWriter, r *http.Request, err error, m
 	utils.InternalError(w, msg+" (request id: "+middleware.RequestID(r)+")")
 }
 
+// opError responds 400 with a static, client-safe message for operations
+// that commonly fail on user input (bad path, missing file); the raw
+// Docker error is logged with the request ID, never sent to the client.
+func (a *API) opError(w http.ResponseWriter, r *http.Request, err error, msg string) {
+	a.logger.Warn(msg, zap.Error(err),
+		zap.String("path", r.URL.Path),
+		zap.String("request_id", middleware.RequestID(r)))
+	utils.BadRequest(w, msg+" (request id: "+middleware.RequestID(r)+")")
+}
+
 func (a *API) decodeAndValidate(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		utils.BadRequest(w, "Invalid request body")

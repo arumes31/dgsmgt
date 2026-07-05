@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 // ---- Interactive console -----------------------------------------------------------
@@ -97,7 +98,13 @@ func (a *API) sendCommand(server *models.Server, cmd string) (string, error) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		return "", svc.SendStdin(ctx, server.ContainerID, cmd)
+		if err := svc.SendStdin(ctx, server.ContainerID, cmd); err != nil {
+			// Client-safe message; the raw Docker error stays in the logs.
+			a.logger.Warn("console stdin write failed",
+				zap.String("container", server.ContainerID), zap.Error(err))
+			return "", fmt.Errorf("failed to write to the container console")
+		}
+		return "", nil
 	}
 }
 

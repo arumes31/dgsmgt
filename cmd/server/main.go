@@ -158,14 +158,14 @@ func Run() error {
 	// outstanding access tokens immediately.
 	apiRouter := r.PathPrefix("/api").Subrouter()
 	apiRouter.Use(middleware.AuthMiddleware(cfg.JWTSecret, func(c *auth.Claims) bool {
-		// Take (not Pluck) so a deleted user yields ErrRecordNotFound
-		// instead of a zero value that could match a stale token.
-		var u models.User
-		if err := database.Select("token_version").Where("id = ?", c.UserID).
-			Take(&u).Error; err != nil {
-			return false
+		ok, err := auth.ValidateTokenVersion(database, c)
+		if err != nil {
+			// Fail open: a transient DB error must not 401 every in-flight
+			// request; the revocation check retries on the next call.
+			logger.Warn("token-version check unavailable", zap.Error(err))
+			return true
 		}
-		return u.TokenVersion == c.TokenVersion
+		return ok
 	}))
 
 	// Profile & session

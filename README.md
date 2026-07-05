@@ -98,6 +98,7 @@ volumes: { pg_data: {}, backups: {} }
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | 15m / 720h | Session lifetimes |
 | `SERVER_GAME_PORTRANGE` | 25000-30000 | Host port range for template deployments |
 | `SERVER_DATA_PATH` | ./serverdata | Host dir for auto-created game volumes |
+| `RCON_HOST` | host.docker.internal | Address the panel dials for auto-configured RCON (set to your host IP when running without the compose host-gateway alias) |
 | `BACKUP_PATH` | ./backups | Local backup storage |
 | `DISCORD_CLIENT_ID/SECRET/REDIRECT_URL` | – | Discord OAuth login (`DISCORD_AUTO_CREATE=true` to auto-provision) |
 | `SMTP_HOST/PORT/USER/PASS/FROM` | – | Email (password reset + notifications) |

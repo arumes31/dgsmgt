@@ -62,6 +62,7 @@ type Config struct {
 	// Game server deployment
 	GamePortRange string // e.g. "25000-30000": host ports auto-allocated from this range
 	DataPath      string // host directory for auto-created server volumes
+	RconHost      string // address the panel dials for locally published RCON ports
 
 	Version string
 }
@@ -135,6 +136,7 @@ func Load() *Config {
 		MetricInterval:      getdur("METRIC_INTERVAL", 30*time.Second),
 		GamePortRange:       getenv("SERVER_GAME_PORTRANGE", "25000-30000"),
 		DataPath:            getenv("SERVER_DATA_PATH", "./serverdata"),
+		RconHost:            getenv("RCON_HOST", "host.docker.internal"),
 		Version:             BuildVersion,
 	}
 	// Guard against zero/negative intervals (e.g. METRIC_INTERVAL=0s) which
