@@ -31,7 +31,7 @@ untrusted container.
 
 ## Requirements
 
-- Go 1.27 for local development
+- Go 1.26.7 or newer 1.26 patch release for local development
 - Docker Engine and Docker Compose V2 for deployment
 - OpenSSL when using `install.sh`
 
