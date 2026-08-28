@@ -38,7 +38,7 @@ jobs:
           git diff --exit-code -- go.mod go.sum
 
       - name: Lint
-        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run
 
       - name: Run gosec
         uses: securego/gosec@deb54465fea23d19a77f037e11e6589021f8501d # v2.29.0
