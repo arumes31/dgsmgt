@@ -82,7 +82,9 @@ func listen(socketPath string) (net.Listener, error) {
 	if filepath.Clean(socketPath) != defaultSocketPath {
 		return nil, fmt.Errorf("docker proxy socket must be %s", defaultSocketPath)
 	}
-	directory := filepath.Dir(socketPath)
+	// Use only the compiled-in path after validating the caller's value.
+	socketPath = defaultSocketPath
+	directory := filepath.Dir(defaultSocketPath)
 	if err := os.MkdirAll(directory, 0o750); err != nil {
 		return nil, err
 	}
@@ -96,6 +98,7 @@ func listen(socketPath string) (net.Listener, error) {
 	if err := os.Chown(socketPath, clientUID, clientGID); err != nil {
 		return nil, errors.Join(err, listener.Close())
 	}
+	// #nosec G302 -- the group write bit is required for the unprivileged app to connect to this Unix socket.
 	if err := os.Chmod(socketPath, 0o660); err != nil {
 		return nil, errors.Join(err, listener.Close())
 	}

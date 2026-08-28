@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	tokenIssuer   = "dgsmgt"
+	tokenIssuer = "dgsmgt"
+	// #nosec G101 -- this is a public JWT audience identifier, not a credential.
 	tokenAudience = "dgsmgt-api"
 )
 

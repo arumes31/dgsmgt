@@ -89,10 +89,12 @@ func (c *remoteClient) stream(ctx context.Context, operation, containerID, tail 
 	if tail != "" {
 		endpoint += "?tail=" + url.QueryEscape(tail)
 	}
+	// #nosec G704 -- the transport always dials the validated local Unix socket; the URL host is never resolved.
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://unix"+endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating Docker proxy request: %w", err)
 	}
+	// #nosec G704 -- httpClient uses the hard-wired Unix-socket DialContext created by NewRemoteService.
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("calling Docker proxy: %w", err)
@@ -120,6 +122,7 @@ func (c *remoteClient) doJSON(
 		body = bytes.NewReader(encoded)
 	}
 
+	// #nosec G704 -- the transport always dials the validated local Unix socket; the URL host is never resolved.
 	request, err := http.NewRequestWithContext(ctx, method, "http://unix"+endpoint, body)
 	if err != nil {
 		return fmt.Errorf("creating Docker proxy request: %w", err)
@@ -128,6 +131,7 @@ func (c *remoteClient) doJSON(
 		request.Header.Set("Content-Type", "application/json")
 	}
 
+	// #nosec G704 -- httpClient uses the hard-wired Unix-socket DialContext created by NewRemoteService.
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("calling Docker proxy: %w", err)
