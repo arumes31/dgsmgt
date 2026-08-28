@@ -1,47 +1,50 @@
 #!/bin/bash
 
-# Deployment script for dgsmgt panel
-# This script installs Docker/Docker Compose and starts the panel
+# Deployment script for dgsmgt panel.
+# Docker must be installed from the operator's trusted distribution/vendor
+# repository. This script deliberately never downloads or executes a root
+# installer.
 
-set -e
+set -eu
+umask 077
 
 echo "Starting dgsmgt installation..."
 
-# Check if Docker is installed
-if ! [ -x "$(command -v docker)" ]; then
-  echo "Installing Docker..."
-  curl -fsSL https://get.docker.com -o get-docker.sh
-  sh get-docker.sh
-  rm get-docker.sh
-  # Add current user to docker group
-  sudo usermod -aG docker $USER
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: Docker is not installed." >&2
+  echo "Install Docker from your signed distribution or vendor repository, then rerun this script." >&2
+  exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! [ -x "$(command -v docker-compose)" ]; then
-  echo "Docker Compose not found. Using 'docker compose' (V2)."
-  if ! docker compose version >/dev/null 2>&1; then
-    echo "ERROR: Docker Compose V2 not found. Please install it."
-    exit 1
-  fi
+if ! docker compose version >/dev/null 2>&1; then
+  echo "ERROR: Docker Compose V2 is not installed." >&2
+  exit 1
 fi
 
-# Setup .env file if it doesn't exist
+if ! command -v openssl >/dev/null 2>&1; then
+  echo "ERROR: openssl is required to generate installation-specific secrets." >&2
+  exit 1
+fi
+
+# Set up the environment file only once. Existing secrets are never replaced.
 if [ ! -f .env ]; then
   echo "Setting up .env file..."
   cp .env.example .env
-  # Generate a random JWT secret
-  SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-  sed -i "s/replace_me_with_a_long_random_string_in_production/$SECRET/g" .env
-  echo "A random JWT_SECRET has been generated and saved to .env"
+  JWT_SECRET=$(openssl rand -hex 32)
+  ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '\n')
+  sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/" .env
+  sed -i "s/^ADMIN_USER=.*/ADMIN_USER=admin/" .env
+  sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$ADMIN_PASSWORD|" .env
+  chmod 600 .env
+  echo "Installation-specific credentials were generated in .env (mode 0600)."
 fi
 
-# Build and start the panel
 echo "Starting dgsmgt panel..."
 docker compose up -d --build
 
 echo "----------------------------------------------------"
 echo "dgsmgt panel installation complete!"
 echo "You can access the panel on port 8080 (default)."
-echo "Default credentials (if not changed in .env): admin / admin"
+echo "Retrieve the initial credentials from the protected .env file and rotate them after first use."
+echo "Docker-group and Docker-socket access are root-equivalent; restrict access to this host."
 echo "----------------------------------------------------"

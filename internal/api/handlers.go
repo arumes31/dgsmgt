@@ -2,14 +2,18 @@ package api
 
 import (
 	"dgsmgt/internal/auth"
+	"dgsmgt/internal/config"
 	"dgsmgt/internal/docker"
 	"dgsmgt/internal/middleware"
 	"dgsmgt/internal/models"
 	"dgsmgt/internal/utils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -29,7 +33,9 @@ type API struct {
 	upgrader       websocket.Upgrader
 	logger         *zap.Logger
 	validate       *validator.Validate
-	loginAttempts  sync.Map
+	loginAttempts  map[loginKey]loginAttempt
+	loginMu        sync.Mutex
+	lastLoginSweep time.Time
 }
 
 type loginAttempt struct {
@@ -37,9 +43,50 @@ type loginAttempt struct {
 	lastError time.Time
 }
 
+type loginKey struct {
+	clientIP string
+	username string
+}
+
+const loginLockout = 15 * time.Minute
+
+func (a *API) loginBlocked(key loginKey, now time.Time) bool {
+	a.loginMu.Lock()
+	defer a.loginMu.Unlock()
+
+	if now.Sub(a.lastLoginSweep) >= time.Minute {
+		for candidate, attempt := range a.loginAttempts {
+			if now.Sub(attempt.lastError) >= loginLockout {
+				delete(a.loginAttempts, candidate)
+			}
+		}
+		a.lastLoginSweep = now
+	}
+	attempt, exists := a.loginAttempts[key]
+	return exists && attempt.count >= 5 && now.Sub(attempt.lastError) < loginLockout
+}
+
+func (a *API) recordLoginFailure(key loginKey, now time.Time) {
+	a.loginMu.Lock()
+	defer a.loginMu.Unlock()
+	attempt := a.loginAttempts[key]
+	attempt.count++
+	attempt.lastError = now
+	a.loginAttempts[key] = attempt
+}
+
+func (a *API) resetLoginFailures(key loginKey) {
+	a.loginMu.Lock()
+	defer a.loginMu.Unlock()
+	delete(a.loginAttempts, key)
+}
+
 func NewAPI(docker *docker.Service, db *gorm.DB, jwtSecret string, allowedOrigins []string, logger *zap.Logger) *API {
 	v := validator.New()
 	_ = v.RegisterValidation("cron", validateCron)
+	_ = v.RegisterValidation("password", func(fl validator.FieldLevel) bool {
+		return config.ValidatePassword(fl.Field().String()) == nil
+	})
 
 	a := &API{
 		docker:         docker,
@@ -48,6 +95,8 @@ func NewAPI(docker *docker.Service, db *gorm.DB, jwtSecret string, allowedOrigin
 		allowedOrigins: allowedOrigins,
 		logger:         logger,
 		validate:       v,
+		loginAttempts:  make(map[loginKey]loginAttempt),
+		lastLoginSweep: time.Now(),
 	}
 	a.upgrader = websocket.Upgrader{
 		CheckOrigin: a.checkOrigin,
@@ -65,16 +114,28 @@ func validateCron(fl validator.FieldLevel) bool {
 }
 
 func (a *API) checkOrigin(r *http.Request) bool {
-	if len(a.allowedOrigins) == 0 || (len(a.allowedOrigins) == 1 && a.allowedOrigins[0] == "*") {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
 		return true
 	}
-	origin := r.Header.Get("Origin")
 	for _, allowed := range a.allowedOrigins {
 		if origin == allowed {
 			return true
 		}
 	}
-	return false
+
+	// Without an explicit cross-origin allowlist, accept only the origin served
+	// by this request. Deployments behind a host-rewriting proxy must configure
+	// ALLOWED_ORIGINS rather than trusting forwarded headers.
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Host != r.Host {
+		return false
+	}
+	expectedScheme := "http"
+	if r.TLS != nil {
+		expectedScheme = "https"
+	}
+	return parsed.Scheme == expectedScheme
 }
 
 func (a *API) HealthHandler(w http.ResponseWriter, r *http.Request) {
@@ -88,9 +149,9 @@ func (a *API) MeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	
+
 	var input struct {
-		Password string `json:"password" validate:"required,min=8"`
+		Password string `json:"password" validate:"required,password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.BadRequest(w, "Invalid request body")
@@ -119,10 +180,10 @@ func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) recordAuditLog(claims *auth.Claims, action string, server *models.Server, details string) {
 	log := models.AuditLog{
-		UserID:     claims.UserID,
-		Username:   claims.Username,
-		Action:     action,
-		Details:    details,
+		UserID:   claims.UserID,
+		Username: claims.Username,
+		Action:   action,
+		Details:  details,
 	}
 	if server != nil {
 		log.ServerID = server.ID
@@ -148,31 +209,32 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request, secret string
 		return
 	}
 
-	key := r.RemoteAddr + ":" + creds.Username
-	if val, ok := a.loginAttempts.Load(key); ok {
-		attempt := val.(*loginAttempt)
-		if attempt.count >= 5 && time.Since(attempt.lastError) < 15*time.Minute {
-			a.logger.Warn("Brute force protection triggered", zap.String("key", key))
-			utils.Forbidden(w, "Too many login attempts. Try again in 15 minutes.")
-			return
-		}
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientIP = r.RemoteAddr
+	}
+	key := loginKey{clientIP: clientIP, username: creds.Username}
+	if a.loginBlocked(key, time.Now()) {
+		a.logger.Warn("Brute force protection triggered",
+			zap.String("client_ip", clientIP),
+			zap.String("username", creds.Username),
+		)
+		utils.Forbidden(w, "Too many login attempts. Try again in 15 minutes.")
+		return
 	}
 
 	user, err := auth.Authenticate(creds.Username, creds.Password)
 	if err != nil {
 		a.logger.Warn("Failed login attempt", zap.String("username", creds.Username))
 
-		actual, _ := a.loginAttempts.LoadOrStore(key, &loginAttempt{})
-		attempt := actual.(*loginAttempt)
-		attempt.count++
-		attempt.lastError = time.Now()
+		a.recordLoginFailure(key, time.Now())
 
 		utils.Unauthorized(w, "Invalid credentials")
 		return
 	}
 
 	// Reset attempts on success
-	a.loginAttempts.Delete(key)
+	a.resetLoginFailures(key)
 
 	token, err := auth.GenerateToken(user, secret)
 	if err != nil {
@@ -198,7 +260,8 @@ func (a *API) StatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	info, err := a.docker.GetStatus(r.Context(), id)
 	if err != nil {
-		utils.JSON(w, http.StatusNotFound, map[string]string{"status": "not_found"}, err.Error(), nil)
+		a.logger.Warn("Docker status failed", zap.String("id", id), zap.Error(err))
+		utils.JSON(w, http.StatusNotFound, map[string]string{"status": "not_found"}, "Container not found", nil)
 		return
 	}
 	utils.Success(w, info)
@@ -225,23 +288,26 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 	// Check specific permissions if not admin
 	if !claims.IsAdmin {
 		var userServer models.UserServer
-		if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err == nil {
-			switch action {
-			case "start":
-				if !userServer.CanStart {
-					utils.Forbidden(w, "Permission denied: cannot start")
-					return
-				}
-			case "stop":
-				if !userServer.CanStop {
-					utils.Forbidden(w, "Permission denied: cannot stop")
-					return
-				}
-			case "restart":
-				if !userServer.CanRestart {
-					utils.Forbidden(w, "Permission denied: cannot restart")
-					return
-				}
+		if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err != nil {
+			a.logger.Warn("Failed to verify container action permission", zap.Error(err))
+			utils.Forbidden(w, "Access denied")
+			return
+		}
+		switch action {
+		case "start":
+			if !userServer.CanStart {
+				utils.Forbidden(w, "Permission denied: cannot start")
+				return
+			}
+		case "stop":
+			if !userServer.CanStop {
+				utils.Forbidden(w, "Permission denied: cannot stop")
+				return
+			}
+		case "restart":
+			if !userServer.CanRestart {
+				utils.Forbidden(w, "Permission denied: cannot restart")
+				return
 			}
 		}
 	}
@@ -288,7 +354,8 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	reader, err := a.docker.Stats(r.Context(), id)
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error reading stats: "+err.Error()))
+		a.logger.Warn("Metrics stream failed", zap.String("id", id), zap.Error(err))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Metrics stream unavailable"))
 		return
 	}
 	defer func() { _ = reader.Close() }()
@@ -329,14 +396,20 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Check view logs permission if not admin
 	if !claims.IsAdmin {
 		var server models.Server
-		if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err == nil {
-			var userServer models.UserServer
-			if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err == nil {
-				if !userServer.CanViewLogs {
-					utils.Forbidden(w, "Permission denied: cannot view logs")
-					return
-				}
-			}
+		if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err != nil {
+			a.logger.Warn("Failed to resolve server for log permission", zap.Error(err))
+			utils.Forbidden(w, "Access denied")
+			return
+		}
+		var userServer models.UserServer
+		if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err != nil {
+			a.logger.Warn("Failed to verify log permission", zap.Error(err))
+			utils.Forbidden(w, "Access denied")
+			return
+		}
+		if !userServer.CanViewLogs {
+			utils.Forbidden(w, "Permission denied: cannot view logs")
+			return
 		}
 	}
 
@@ -349,7 +422,8 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	reader, err := a.docker.Logs(r.Context(), id, "100")
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error reading logs: "+err.Error()))
+		a.logger.Warn("Log stream failed", zap.String("id", id), zap.Error(err))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Log stream unavailable"))
 		return
 	}
 	defer func() { _ = reader.Close() }()
@@ -466,7 +540,7 @@ func (a *API) ListUsersHandler(w http.ResponseWriter, r *http.Request) {
 func (a *API) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Username string `json:"username" validate:"required,min=3,max=32"`
-		Password string `json:"password" validate:"required,min=8"`
+		Password string `json:"password" validate:"required,password"`
 		IsAdmin  bool   `json:"is_admin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -514,7 +588,7 @@ func (a *API) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	var input struct {
 		Username string `json:"username" validate:"required,min=3,max=32"`
-		Password string `json:"password" validate:"omitempty,min=8"`
+		Password string `json:"password" validate:"omitempty,password"`
 		IsAdmin  bool   `json:"is_admin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -602,7 +676,11 @@ func (a *API) CreateServerHandler(w http.ResponseWriter, r *http.Request) {
 	containerID, err := a.docker.Create(r.Context(), input.Name, input.Image, input.Ports, input.Env, input.Volumes)
 	if err != nil {
 		a.logger.Error("Docker creation failed", zap.Error(err))
-		utils.InternalError(w, fmt.Sprintf("Docker error: %v", err))
+		if errors.Is(err, docker.ErrCreationDenied) {
+			utils.BadRequest(w, "Container configuration is not permitted")
+			return
+		}
+		utils.InternalError(w, "Docker operation failed")
 		return
 	}
 

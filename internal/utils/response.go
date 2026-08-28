@@ -16,13 +16,13 @@ type Response struct {
 func JSON(w http.ResponseWriter, statusCode int, data interface{}, err string, meta interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	resp := Response{
 		Data:  data,
 		Error: err,
 		Meta:  meta,
 	}
-	
+
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
@@ -56,7 +56,9 @@ func NotFound(w http.ResponseWriter, message string) {
 	JSON(w, http.StatusNotFound, nil, message, nil)
 }
 
-// InternalError sends a 500 Internal Server Error JSON response
-func InternalError(w http.ResponseWriter, message string) {
-	JSON(w, http.StatusInternalServerError, nil, message, nil)
+// InternalError sends a generic response so database, filesystem, and Docker
+// implementation details cannot cross the API trust boundary. Callers should
+// log the underlying error separately.
+func InternalError(w http.ResponseWriter, _ string) {
+	JSON(w, http.StatusInternalServerError, nil, "Internal server error", nil)
 }
