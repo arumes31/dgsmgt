@@ -5,6 +5,7 @@ import (
 	"dgsmgt/internal/auth"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -17,20 +18,54 @@ type contextKey string
 
 const ClaimsKey contextKey = "claims"
 
-func IPMiddleware(trustProxy bool) func(http.Handler) http.Handler {
+func IPMiddleware(trustedProxies []netip.Prefix) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if trustProxy {
-				if cfIP := r.Header.Get("CF-Connecting-IP"); cfIP != "" {
-					r.RemoteAddr = net.JoinHostPort(cfIP, "0")
-				} else if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-					ips := strings.Split(xff, ",")
-					r.RemoteAddr = net.JoinHostPort(strings.TrimSpace(ips[0]), "0")
+			peer, err := peerAddress(r.RemoteAddr)
+			if err == nil && addressInPrefixes(peer, trustedProxies) {
+				if client, ok := forwardedClientAddress(r, peer, trustedProxies); ok {
+					r.RemoteAddr = net.JoinHostPort(client.String(), "0")
 				}
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func peerAddress(remoteAddr string) (netip.Addr, error) {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	return netip.ParseAddr(strings.Trim(host, "[]"))
+}
+
+func addressInPrefixes(address netip.Addr, prefixes []netip.Prefix) bool {
+	for _, prefix := range prefixes {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
+}
+
+func forwardedClientAddress(r *http.Request, peer netip.Addr, trusted []netip.Prefix) (netip.Addr, bool) {
+	chain := []netip.Addr{peer}
+	for _, raw := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
+		if raw = strings.TrimSpace(raw); raw != "" {
+			address, err := netip.ParseAddr(raw)
+			if err != nil {
+				return netip.Addr{}, false
+			}
+			chain = append([]netip.Addr{address}, chain...)
+		}
+	}
+	for index := len(chain) - 1; index >= 0; index-- {
+		if !addressInPrefixes(chain[index], trusted) {
+			return chain[index], true
+		}
+	}
+	return netip.Addr{}, false
 }
 
 // LoggingMiddleware uses zap for structured logging
@@ -39,7 +74,7 @@ func LoggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			next.ServeHTTP(w, r)
-			
+
 			logger.Info("request",
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
@@ -98,23 +133,10 @@ func RateLimitMiddleware(rps float64, burst int) func(http.Handler) http.Handler
 		lastSeen time.Time
 	}
 	var (
-		mu      sync.Mutex
-		clients = make(map[string]*client)
+		mu          sync.Mutex
+		clients     = make(map[string]*client)
+		lastCleanup = time.Now()
 	)
-
-	// Cleanup old clients periodically
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-			mu.Lock()
-			for ip, c := range clients {
-				if time.Since(c.lastSeen) > 5*time.Minute {
-					delete(clients, ip)
-				}
-			}
-			mu.Unlock()
-		}
-	}()
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -124,10 +146,19 @@ func RateLimitMiddleware(rps float64, burst int) func(http.Handler) http.Handler
 			}
 
 			mu.Lock()
+			now := time.Now()
+			if now.Sub(lastCleanup) >= time.Minute {
+				for clientIP, c := range clients {
+					if now.Sub(c.lastSeen) > 5*time.Minute {
+						delete(clients, clientIP)
+					}
+				}
+				lastCleanup = now
+			}
 			if _, found := clients[ip]; !found {
 				clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(rps), burst)}
 			}
-			clients[ip].lastSeen = time.Now()
+			clients[ip].lastSeen = now
 			limiter := clients[ip].limiter
 			mu.Unlock()
 

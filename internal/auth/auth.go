@@ -4,10 +4,16 @@ import (
 	"dgsmgt/internal/db"
 	"dgsmgt/internal/models"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	tokenIssuer   = "dgsmgt"
+	tokenAudience = "dgsmgt-api"
 )
 
 type Claims struct {
@@ -24,7 +30,10 @@ func GenerateToken(user *models.User, secret string) (string, error) {
 		Username: user.Username,
 		IsAdmin:  user.IsAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    tokenIssuer,
+			Audience:  jwt.ClaimStrings{tokenAudience},
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
@@ -35,8 +44,16 @@ func GenerateToken(user *models.User, secret string) (string, error) {
 func VerifyToken(tokenString, secret string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, fmt.Errorf("unexpected signing method %q", token.Method.Alg())
+		}
 		return []byte(secret), nil
-	})
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(tokenIssuer),
+		jwt.WithAudience(tokenAudience),
+		jwt.WithExpirationRequired(),
+	)
 
 	if err != nil {
 		return nil, err

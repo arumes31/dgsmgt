@@ -4,6 +4,7 @@ import (
 	"context"
 	"dgsmgt/internal/api"
 	"dgsmgt/internal/auth"
+	"dgsmgt/internal/config"
 	"dgsmgt/internal/db"
 	"dgsmgt/internal/docker"
 	"dgsmgt/internal/middleware"
@@ -36,22 +37,20 @@ func main() {
 		dsn = "dgsmgt.db"
 	}
 
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "default_secret_change_me"
-		logger.Warn("Using default JWT secret")
-	}
-
-	adminUser := os.Getenv("ADMIN_USER")
-	if adminUser == "" {
-		adminUser = "admin"
-	}
-	adminPass := os.Getenv("ADMIN_PASSWORD")
-	if adminPass == "" {
-		adminPass = "admin"
+	jwtSecret, err := config.JWTSecret(os.Getenv)
+	if err != nil {
+		logger.Fatal("Invalid security configuration", zap.Error(err))
 	}
 
 	trustProxy := os.Getenv("TRUST_PROXY") == "true"
+	trustedProxyCIDRs, err := config.TrustedProxyCIDRs(os.Getenv, trustProxy)
+	if err != nil {
+		logger.Fatal("Invalid proxy configuration", zap.Error(err))
+	}
+	allowedOrigins, err := config.AllowedOrigins(os.Getenv)
+	if err != nil {
+		logger.Fatal("Invalid origin configuration", zap.Error(err))
+	}
 
 	// Initialize Database
 	database, err := db.InitDB(dsn)
@@ -66,9 +65,18 @@ func main() {
 
 	// Seed Admin User if not exists
 	var count int64
-	database.Model(&models.User{}).Count(&count)
+	if err := database.Model(&models.User{}).Count(&count).Error; err != nil {
+		logger.Fatal("Failed to count users", zap.Error(err))
+	}
 	if count == 0 {
-		hashedPass, _ := auth.HashPassword(adminPass)
+		adminUser, adminPass, err := config.BootstrapCredentials(os.Getenv)
+		if err != nil {
+			logger.Fatal("Initial administrator credentials are required", zap.Error(err))
+		}
+		hashedPass, err := auth.HashPassword(adminPass)
+		if err != nil {
+			logger.Fatal("Failed to hash initial administrator password", zap.Error(err))
+		}
 		user := models.User{
 			Username:     adminUser,
 			PasswordHash: hashedPass,
@@ -77,17 +85,23 @@ func main() {
 		if err := database.Create(&user).Error; err != nil {
 			logger.Fatal("Failed to create admin user", zap.Error(err))
 		}
-		logger.Info("Created default admin user", zap.String("username", adminUser))
+		logger.Info("Created initial admin user", zap.String("username", adminUser))
 	}
 
-	// Initialize Docker Service
-	dockerService, err := docker.NewService()
+	dockerProxySocket := os.Getenv("DOCKER_PROXY_SOCKET")
+	if dockerProxySocket == "" {
+		dockerProxySocket = "/run/dgsmgt/docker-proxy.sock"
+	}
+
+	// The public web process never receives the host Docker socket. It talks to
+	// the constrained helper over a private Unix socket instead.
+	dockerService, err := docker.NewRemoteService(dockerProxySocket)
 	if err != nil {
 		logger.Fatal("Failed to initialize Docker service", zap.Error(err))
 	}
 
 	// Initialize API
-	apiServer := api.NewAPI(dockerService, database, jwtSecret, []string{"*"}, logger)
+	apiServer := api.NewAPI(dockerService, database, jwtSecret, allowedOrigins, logger)
 
 	// Initialize Cron Scheduler
 	crunner := cron.New()
@@ -112,10 +126,10 @@ func main() {
 	r := mux.NewRouter()
 
 	// Global Middleware
-	r.Use(middleware.IPMiddleware(trustProxy))
+	r.Use(middleware.IPMiddleware(trustedProxyCIDRs))
 	r.Use(middleware.LoggingMiddleware(logger))
 	r.Use(middleware.PayloadLimitMiddleware(1 << 20)) // 1MB limit
-	r.Use(middleware.RateLimitMiddleware(10, 20))    // 10 RPS, 20 burst
+	r.Use(middleware.RateLimitMiddleware(10, 20))     // 10 RPS, 20 burst
 	r.Use(secureHeadersMiddleware)
 
 	// Health Route (unauthenticated)
@@ -141,7 +155,7 @@ func main() {
 	// Admin Routes
 	adminRouter := apiRouter.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(middleware.AdminMiddleware)
-	
+
 	// User Management
 	adminRouter.HandleFunc("/users", apiServer.ListUsersHandler).Methods("GET")
 	adminRouter.HandleFunc("/users", apiServer.CreateUserHandler).Methods("POST")
@@ -171,12 +185,16 @@ func main() {
 	})
 
 	// CORS Setup
-	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"}, // Adjust in production
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},
-		AllowCredentials: true,
-	})
+	handler := http.Handler(r)
+	if len(allowedOrigins) > 0 {
+		c := cors.New(cors.Options{
+			AllowedOrigins:   allowedOrigins,
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Content-Type", "Authorization"},
+			AllowCredentials: true,
+		})
+		handler = c.Handler(r)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -184,11 +202,13 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Handler:      c.Handler(r),
-		Addr:         ":" + port,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Handler:           handler,
+		Addr:              ":" + port,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	// Graceful Shutdown Logic
