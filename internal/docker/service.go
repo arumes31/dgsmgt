@@ -139,7 +139,7 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 	if err != nil {
 		return "", fmt.Errorf("pulling image: %w", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	if _, err := io.Copy(io.Discard, rc); err != nil {
 		return "", fmt.Errorf("reading pull output: %w", err)
 	}
@@ -176,7 +176,8 @@ func isValidContainerName(name string) bool {
 		return false
 	}
 	for _, r := range name {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == '.') {
+		valid := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == '.'
+		if !valid {
 			return false
 		}
 	}
@@ -223,4 +224,3 @@ func (s *Service) List(ctx context.Context) ([]ContainerInfo, error) {
 
 	return infoList, nil
 }
-
