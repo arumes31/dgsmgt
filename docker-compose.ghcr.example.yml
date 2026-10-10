@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   dgsmgt:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-YOUR_USERNAME}/${GITHUB_REPOSITORY_NAME:-dgsmgt}:latest
+    image: ghcr.io/arumes31/dgsmgt:latest
     container_name: dgsmgt
     restart: always
     ports:

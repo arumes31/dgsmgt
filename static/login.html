@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | DGSMgt Portal</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .login-page {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #050505;
+          overflow: hidden;
+        }
+
+        .login-bg {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+        }
+
+        .bg-blob {
+          position: absolute;
+          width: 500px;
+          height: 500px;
+          border-radius: 50%;
+          filter: blur(80px);
+          opacity: 0.15;
+          animation: float-bg 20s infinite alternate;
+        }
+
+        .blob-1 { background: #3b82f6; top: -100px; left: -100px; }
+        .blob-2 { background: #8b5cf6; bottom: -100px; right: -100px; animation-delay: -5s; }
+
+        @keyframes float-bg {
+          0% { transform: translate(0, 0) scale(1); }
+          100% { transform: translate(100px, 50px) scale(1.1); }
+        }
+
+        .login-card {
+          width: 100%;
+          max-width: 420px;
+          padding: 40px;
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 28px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          position: relative;
+          z-index: 10;
+          margin: 16px;
+        }
+
+        .login-header { text-align: center; margin-bottom: 32px; }
+
+        .logo-box {
+          width: 64px;
+          height: 64px;
+          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          border-radius: 18px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 20px;
+          box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.5);
+        }
+
+        .login-title {
+          font-size: 28px;
+          font-weight: 700;
+          margin: 0;
+          background: linear-gradient(to right, #ffffff, #94a3b8);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-bg">
+            <div class="bg-blob blob-1"></div>
+            <div class="bg-blob blob-2"></div>
+        </div>
+
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo-box">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h1 class="login-title">DGSMgt Portal</h1>
+                <p style="color: #94a3b8; font-size: 15px; margin-top: 8px;">Secure access to your game services</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label" for="username">Username</label>
+                    <input type="text" id="username" class="form-input" placeholder="Your username" required autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; padding: 14px; margin-top: 10px;">
+                    <span>Sign In</span>
+                </button>
+            </form>
+
+            <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); text-align: center; color: #64748b; font-size: 13px;">
+                Encrypted Connection &bull; DGSMgt v1.0
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            DGSMgt.ui.setLoading('submitBtn', true, 'Authenticating...');
+
+            try {
+                await DGSMgt.auth.login(username, password);
+                DGSMgt.ui.toast('Login successful!', 'success');
+                window.location.href = '/dashboard.html';
+            } catch (err) {
+                DGSMgt.ui.toast(err.message, 'error');
+                DGSMgt.ui.setLoading('submitBtn', false);
+            }
+        });
+    </script>
+</body>
+</html>

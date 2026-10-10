@@ -1,0 +1,22 @@
+# Git
+.git
+.gitignore
+.github
+
+# Build context
+frontend/
+node_modules/
+dist/
+build/
+*.exe
+*.db
+*.log
+data/
+
+# IDEs and Tools
+.idea/
+.vscode/
+.vscode-test/
+.qodo/
+*.swp
+.DS_Store

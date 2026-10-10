@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Not Found | DGSMgt</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .error-page {
+          height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #050505;
+          overflow: hidden;
+          text-align: center;
+        }
+
+        .error-card {
+          padding: 60px;
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 32px;
+          max-width: 500px;
+          width: 90%;
+        }
+
+        .error-code {
+          font-size: 120px;
+          font-weight: 900;
+          margin: 0;
+          line-height: 1;
+          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          letter-spacing: -0.05em;
+        }
+
+        .error-title {
+          font-size: 24px;
+          font-weight: 700;
+          margin: 20px 0 12px;
+          color: white;
+        }
+
+        .error-desc {
+          color: #94a3b8;
+          font-size: 16px;
+          margin-bottom: 32px;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-page">
+        <div class="error-card">
+            <h1 class="error-code">404</h1>
+            <h2 class="error-title">Page Not Found</h2>
+            <p class="error-desc">The page you're looking for doesn't exist or has been moved.</p>
+            <a href="/" class="btn btn-primary" style="padding: 14px 40px;">Return Home</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -130,6 +130,8 @@ func main() {
 	apiRouter := r.PathPrefix("/api").Subrouter()
 	apiRouter.Use(middleware.AuthMiddleware(jwtSecret))
 
+	apiRouter.HandleFunc("/me", apiServer.MeHandler).Methods("GET")
+	apiRouter.HandleFunc("/me/password", apiServer.ChangePasswordHandler).Methods("POST")
 	apiRouter.HandleFunc("/status/{id}", apiServer.StatusHandler).Methods("GET")
 	apiRouter.HandleFunc("/action/{id}/{action}", apiServer.ActionHandler).Methods("POST")
 	apiRouter.HandleFunc("/logs/{id}", apiServer.LogsHandler)
@@ -151,11 +153,22 @@ func main() {
 	adminRouter.HandleFunc("/servers", apiServer.CreateServerHandler).Methods("POST")
 	adminRouter.HandleFunc("/servers/{id:[0-9]+}", apiServer.DeleteServerHandler).Methods("DELETE")
 
-	// Assignment
+	// Assignments
+	adminRouter.HandleFunc("/assignments", apiServer.ListAssignmentsHandler).Methods("GET")
 	adminRouter.HandleFunc("/assign", apiServer.AssignServerHandler).Methods("POST")
+	adminRouter.HandleFunc("/assignments/{userId:[0-9]+}/{serverId:[0-9]+}", apiServer.DeleteAssignmentHandler).Methods("DELETE")
 
-	// Static files for SPA
+	// Audit Logs
+	adminRouter.HandleFunc("/audit-logs", apiServer.ListAuditLogsHandler).Methods("GET")
+
+	// Static files
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
+
+	// 404 Handler
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		http.ServeFile(w, r, "./static/404.html")
+	})
 
 	// CORS Setup
 	c := cors.New(cors.Options{

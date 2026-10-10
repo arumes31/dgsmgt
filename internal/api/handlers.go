@@ -81,6 +81,42 @@ func (a *API) HealthHandler(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, map[string]string{"status": "UP"})
 }
 
+func (a *API) MeHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	utils.Success(w, claims)
+}
+
+func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	
+	var input struct {
+		Password string `json:"password" validate:"required,min=8"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.BadRequest(w, "Invalid request body")
+		return
+	}
+
+	if err := a.validate.Struct(input); err != nil {
+		utils.BadRequest(w, "Validation failed: "+err.Error())
+		return
+	}
+
+	hashedPass, err := auth.HashPassword(input.Password)
+	if err != nil {
+		utils.InternalError(w, "Error hashing password")
+		return
+	}
+
+	if err := a.db.Model(&models.User{}).Where("id = ?", claims.UserID).Update("password_hash", hashedPass).Error; err != nil {
+		utils.InternalError(w, err.Error())
+		return
+	}
+
+	a.recordAuditLog(claims, "change_password", nil, "User changed their own password")
+	utils.Success(w, map[string]string{"status": "ok"})
+}
+
 func (a *API) recordAuditLog(claims *auth.Claims, action string, server *models.Server, details string) {
 	log := models.AuditLog{
 		UserID:     claims.UserID,
@@ -658,6 +694,40 @@ func (a *API) AssignServerHandler(w http.ResponseWriter, r *http.Request) {
 	a.recordAuditLog(claims, "assign_server", nil, fmt.Sprintf("Assigned server %d to user %d", input.ServerID, input.UserID))
 
 	utils.Success(w, map[string]string{"status": "ok"})
+}
+
+func (a *API) DeleteAssignmentHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID := vars["userId"]
+	serverID := vars["serverId"]
+
+	if err := a.db.Where("user_id = ? AND server_id = ?", userID, serverID).Delete(&models.UserServer{}).Error; err != nil {
+		utils.InternalError(w, err.Error())
+		return
+	}
+
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	a.recordAuditLog(claims, "delete_assignment", nil, fmt.Sprintf("Removed assignment of server %s from user %s", serverID, userID))
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) ListAuditLogsHandler(w http.ResponseWriter, r *http.Request) {
+	var logs []models.AuditLog
+	if err := a.db.Order("created_at desc").Limit(100).Find(&logs).Error; err != nil {
+		utils.InternalError(w, err.Error())
+		return
+	}
+	utils.Success(w, logs)
+}
+
+func (a *API) ListAssignmentsHandler(w http.ResponseWriter, r *http.Request) {
+	var assignments []models.UserServer
+	if err := a.db.Find(&assignments).Error; err != nil {
+		utils.InternalError(w, err.Error())
+		return
+	}
+	utils.Success(w, assignments)
 }
 
 func stripDockerHeader(data []byte) []byte {
