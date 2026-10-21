@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/docker/docker v27.5.1+incompatible
-	github.com/docker/go-connections v0.6.0
+	github.com/docker/go-connections v0.8.2
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
