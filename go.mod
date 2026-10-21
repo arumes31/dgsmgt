@@ -13,7 +13,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/cors v1.11.1
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.56.0
 	golang.org/x/time v0.11.0
 	gorm.io/gorm v1.31.1
