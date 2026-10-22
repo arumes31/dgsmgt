@@ -20,7 +20,7 @@ A modern, lightweight game server management panel built with Go and plain HTML/
 
 ## Tech Stack
 
-- **Backend**: Go 1.25+
+- **Backend**: Go 1.26+
 - **Frontend**: Plain HTML5, CSS3, Vanilla JavaScript (ES6+)
 - **Security**: Gosec, golangci-lint, JWT
 - **Database**: SQLite (via GORM)
@@ -31,7 +31,7 @@ A modern, lightweight game server management panel built with Go and plain HTML/
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - Docker Engine (running and accessible via local socket)
 
 ### Development Setup
@@ -41,7 +41,9 @@ A modern, lightweight game server management panel built with Go and plain HTML/
    ```bash
    go run cmd/server/main.go
    ```
-   Default admin credentials: `admin` / `admin` (change via environment variables `ADMIN_USER` and `ADMIN_PASSWORD`).
+   On first start an admin user is created. Set `ADMIN_USER` / `ADMIN_PASSWORD` (min. 8 characters) beforehand, or leave
+   `ADMIN_PASSWORD` empty to get a random password that is printed once in the log and must be changed at first login.
+   Demo data for development can be created with `go run ./cmd/seed -dev` (writes a random demo-user password to `seed_credentials.txt` next to the database).
 3. **Access the portal**:
    Open `http://localhost:8080` in your browser.
 
@@ -67,15 +69,14 @@ You can run the latest pre-built image from the GitHub Container Registry:
        container_name: dgsmgt
        restart: always
        ports:
-         - "8080:8080"
+         - "127.0.0.1:8080:8080"
        volumes:
          - db_data:/app/data
          - /var/run/docker.sock:/var/run/docker.sock
        environment:
          - DATABASE_URL=/app/data/dgsmgt.db
-         - JWT_SECRET=your_secure_secret
          - ADMIN_USER=admin
-         - ADMIN_PASSWORD=your_admin_password
+         # optional: JWT_SECRET (>= 32 random chars) and ADMIN_PASSWORD, see Configuration
    volumes:
      db_data:
    ```
@@ -88,10 +89,27 @@ You can run the latest pre-built image from the GitHub Container Registry:
 
 Environment variables:
 - `DATABASE_URL`: Path to SQLite DB (default: `dgsmgt.db`)
-- `JWT_SECRET`: Secret for JWT signing
-- `ADMIN_USER`: Initial admin username
-- `ADMIN_PASSWORD`: Initial admin password
+- `JWT_SECRET`: Secret for JWT signing, at least 32 bytes. Known placeholder values are rejected and the server refuses
+  to start. If unset, a random secret is generated and stored in `jwt_secret` next to the database (or `JWT_SECRET_FILE`).
+- `ADMIN_USER`: Initial admin username (default: `admin`)
+- `ADMIN_PASSWORD`: Initial admin password (min. 8 characters, only used when the database has no users). If unset, a
+  random password is generated, printed once in the log, and must be changed at first login.
 - `TRUST_PROXY`: Set to `true` if behind a reverse proxy
+- `TRUSTED_PROXIES`: Comma-separated CIDRs of proxies whose `X-Forwarded-For` / `CF-Connecting-IP` headers are trusted
+  when `TRUST_PROXY=true` (default: loopback and private ranges; add the Cloudflare ranges when using Cloudflare)
+- `ALLOWED_ORIGINS`: Comma-separated extra origins allowed for CORS and WebSockets (default: same origin only)
+- `ALLOWED_BIND_ROOT`: Host directory under which bind mounts may be used for created containers. Empty (default)
+  allows named volumes only; the Docker socket and `/` can never be mounted.
+- `ALLOWED_IMAGE_PREFIXES`: Comma-separated image prefixes allowed for created containers, e.g.
+  `docker.io/library/,ghcr.io/myorg/` (default: any image)
+- `BIND_ADDR` (docker compose only): host address of the published port (default: `127.0.0.1`)
+
+## Security Notes
+
+- Panel admins can create containers through the Docker socket, so treat admin accounts as highly privileged.
+- The panel speaks plain HTTP. Run it behind a reverse proxy that terminates TLS (and sets HSTS), e.g. Caddy, Traefik
+  or nginx; the compose files only publish the port on `127.0.0.1` by default.
+- Admins that still use a default password from earlier releases are forced to change it at their next login.
 
 ## License
 
