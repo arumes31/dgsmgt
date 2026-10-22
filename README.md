@@ -43,7 +43,7 @@ A modern, lightweight game server management panel built with Go and plain HTML/
    ```
    On first start an admin user is created. Set `ADMIN_USER` / `ADMIN_PASSWORD` (min. 8 characters) beforehand, or leave
    `ADMIN_PASSWORD` empty to get a random password that is printed once in the log and must be changed at first login.
-   Demo data for development can be created with `go run ./cmd/seed -dev` (writes a random demo-user password to `seed_credentials.txt` next to the database).
+   Demo data for development can be created with `go run ./cmd/seed -dev` (writes a random demo-user password to `seed_credentials.txt` in the working directory).
 3. **Access the portal**:
    Open `http://localhost:8080` in your browser.
 

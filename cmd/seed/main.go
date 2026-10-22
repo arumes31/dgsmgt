@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 )
+
+// seedCredentialsFile receives the generated demo password (in the working directory).
+const seedCredentialsFile = "seed_credentials.txt"
 
 // Seeds demo users and servers for local development only.
 func main() {
@@ -116,10 +118,9 @@ func main() {
 
 	log.Println("Seeding complete!")
 	// Stored in a private file instead of the console so it does not end up in logs
-	credFile := filepath.Join(filepath.Dir(dsn), "seed_credentials.txt")
 	content := fmt.Sprintf("Password for newly created demo users (admin, user1, user2): %s\n", password)
-	if err := os.WriteFile(credFile, []byte(content), 0o600); err != nil {
+	if err := os.WriteFile(seedCredentialsFile, []byte(content), 0o600); err != nil {
 		log.Fatal("Failed to write credentials file:", err)
 	}
-	log.Printf("Demo user password written to %s", credFile)
+	log.Println("Demo user password written to " + seedCredentialsFile)
 }
