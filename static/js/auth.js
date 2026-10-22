@@ -12,11 +12,15 @@ const DGSMgt = {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
         }),
 
+        // Escapes text for use inside HTML markup, including attribute values
         sanitize: (text) => {
             const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         },
+
+        // API responses are wrapped as { data, error, meta }
+        unwrap: (json) => (json && typeof json === 'object' && 'data' in json) ? json.data : json,
 
         request: async (url, options = {}) => {
             const defaultOptions = {
@@ -37,12 +41,14 @@ const DGSMgt = {
                 }
 
                 if (!response.ok) {
-                    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-                    throw new Error(error.error || `Request failed with status ${response.status}`);
+                    const text = await response.text().catch(() => '');
+                    let message = text.trim();
+                    try { message = JSON.parse(text).error || message; } catch (e) { /* plain text error */ }
+                    throw new Error(message || `Request failed with status ${response.status}`);
                 }
 
                 if (response.status === 204) return true;
-                return response.json();
+                return DGSMgt.api.unwrap(await response.json());
             } catch (err) {
                 console.error(`API Error (${url}):`, err);
                 throw err;
@@ -80,14 +86,20 @@ const DGSMgt = {
                 throw new Error(error.error || 'Invalid credentials');
             }
 
-            const data = await response.json();
+            const data = DGSMgt.api.unwrap(await response.json());
             localStorage.setItem('token', data.token);
             return data;
         },
 
         logout: () => {
+            const token = localStorage.getItem('token');
             localStorage.removeItem('token');
-            window.location.href = '/login.html';
+            const redirect = () => { window.location.href = '/login.html'; };
+            if (!token) return redirect();
+            // Revoke the token server side; ignore failures (e.g. already expired)
+            fetch('/api/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, keepalive: true })
+                .catch(() => {})
+                .finally(redirect);
         },
 
         check: () => {
@@ -119,12 +131,15 @@ const DGSMgt = {
             toast.style.pointerEvents = 'auto';
             toast.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
-                    <span>${message}</span>
-                    <button onclick="this.closest('.toast').remove()" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;">
+                    <span class="toast-message"></span>
+                    <button type="button" class="toast-close" style="background:none; border:none; color:inherit; cursor:pointer; padding:0; display:flex; opacity:0.7;">
                         <svg width="14" height="14" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
                     </button>
                 </div>
             `;
+            // Messages may contain server or user supplied text, never render them as HTML
+            toast.querySelector('.toast-message').textContent = message;
+            toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());
             container.appendChild(toast);
             
             setTimeout(() => {
@@ -157,7 +172,7 @@ const DGSMgt = {
                 const hasIconOnly = (btn.querySelector('svg') || btn.querySelector('use')) && !hasText;
                 
                 if (hasIconOnly && !btn.title) {
-                    const onclickStr = btn.onclick?.toString() || '';
+                    const onclickStr = btn.dataset.action || '';
                     const innerHtml = btn.innerHTML.toLowerCase();
                     if (onclickStr.includes('stop') || innerHtml.includes('stop')) btn.title = 'Stop Server';
                     else if (onclickStr.includes('start') || innerHtml.includes('start')) btn.title = 'Start Server';
@@ -187,7 +202,7 @@ const DGSMgt = {
             dialog.innerHTML = `
                 <div class="modal-content" role="document">
                     <div class="modal-header">
-                        <h3 id="${id}-title">${title}</h3>
+                        <h3 id="${id}-title"></h3>
                         <button type="button" class="btn btn-outline btn-icon dg-modal-close" title="Close" aria-label="Close modal">
                             <svg width="18" height="18" aria-hidden="true"><use href="/icons.svg#icon-close"></use></svg>
                         </button>
@@ -199,6 +214,8 @@ const DGSMgt = {
                 </div>
             `;
             
+            // Titles often contain server names, so they are set as text
+            dialog.querySelector('.modal-header h3').textContent = title;
             document.body.appendChild(dialog);
 
             const close = () => {
@@ -235,7 +252,7 @@ const DGSMgt = {
                     <div style="width: 56px; height: 56px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                     </div>
-                    <p style="color: #94a3b8; font-size: 15px; line-height: 1.5; margin: 0;">${message}</p>
+                    <p style="color: #94a3b8; font-size: 15px; line-height: 1.5; margin: 0;">${DGSMgt.api.sanitize(message)}</p>
                 </div>
             `;
             const footer = `
@@ -253,8 +270,13 @@ const DGSMgt = {
             modal.querySelector('.dg-confirm-yes').focus();
         },
 
-        showChangePassword: () => {
+        // forced: the server requires a new password before anything else can be used
+        showChangePassword: (forced = false) => {
+            const notice = forced
+                ? '<p style="color: #facc15; font-size: 14px; margin: 0 0 16px;">You must set a new password before you can continue.</p>'
+                : '';
             const body = `
+                ${notice}
                 <form id="dg-pwd-form">
                     <div class="form-group">
                         <label class="form-label" for="dg-new-pwd">New Password</label>
@@ -271,8 +293,11 @@ const DGSMgt = {
                 <button type="submit" form="dg-pwd-form" id="dg-pwd-submit" class="btn btn-primary">Update Password</button>
             `;
             
-            const modal = DGSMgt.ui.modal({ title: 'Change Password', body, footer, id: 'dg-pwd-modal' });
-            modal.querySelector('.dg-pwd-cancel').onclick = () => modal.remove();
+            const modal = DGSMgt.ui.modal({
+                title: 'Change Password', body, footer, id: 'dg-pwd-modal',
+                onClose: forced ? () => DGSMgt.auth.logout() : null
+            });
+            modal.querySelector('.dg-pwd-cancel').onclick = () => forced ? DGSMgt.auth.logout() : modal.remove();
             modal.querySelector('#dg-new-pwd').focus();
 
             document.getElementById('dg-pwd-form').onsubmit = async (e) => {
@@ -287,9 +312,12 @@ const DGSMgt = {
 
                 DGSMgt.ui.setLoading('dg-pwd-submit', true);
                 try {
-                    await DGSMgt.api.post('/api/me/password', { password: pwd });
+                    const res = await DGSMgt.api.post('/api/me/password', { password: pwd });
+                    // Changing the password revokes old tokens; the response carries a fresh one
+                    if (res && res.token) localStorage.setItem('token', res.token);
                     DGSMgt.ui.toast('Password updated successfully', 'success');
                     modal.remove();
+                    if (forced) window.location.reload();
                 } catch (err) {
                     DGSMgt.ui.toast(err.message, 'error');
                 } finally {
@@ -318,14 +346,24 @@ const DGSMgt = {
             const token = DGSMgt.api.token();
             if (!token) return null;
 
-            const url = `${protocol}//${window.location.host}${path}?token=${token}`;
             let socket = null;
             let reconnectAttempts = 0;
             const maxAttempts = 5;
             let intentionalClose = false;
 
-            const connect = () => {
-                socket = new WebSocket(url);
+            const connect = async () => {
+                // Browsers cannot send headers on WebSockets, so authenticate with a
+                // short-lived single-use ticket instead of putting the JWT in the URL
+                let ticket;
+                try {
+                    const res = await DGSMgt.api.post('/api/ws-ticket', {});
+                    ticket = res && res.ticket;
+                } catch (err) {
+                    console.error('WebSocket ticket request failed:', err);
+                }
+                if (intentionalClose || !ticket) return;
+
+                socket = new WebSocket(`${protocol}//${window.location.host}${path}?ticket=${encodeURIComponent(ticket)}`);
 
                 socket.onopen = (e) => {
                     reconnectAttempts = 0;
@@ -366,6 +404,26 @@ const DGSMgt = {
         }
     }
 };
+
+// Click/input handlers registered by name and bound through data-action / data-input
+// attributes, so pages need no inline event handlers (the CSP blocks inline scripts)
+DGSMgt.actions = {
+    toggleSidebar: () => toggleSidebar(),
+    logout: () => DGSMgt.auth.logout(),
+    changePassword: () => DGSMgt.ui.showChangePassword()
+};
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    const handler = el && DGSMgt.actions[el.dataset.action];
+    if (!handler) return;
+    if (el.tagName === 'A') e.preventDefault();
+    handler(el, e);
+});
+document.addEventListener('input', (e) => {
+    const el = e.target.closest('[data-input]');
+    const handler = el && DGSMgt.actions[el.dataset.input];
+    if (handler) handler(el, e);
+});
 
 // Initial check
 DGSMgt.auth.check();
