@@ -3,3 +3,10 @@ soulmask-control
 *.log
 .qodo/
 vendor/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+jwt_secret
+.env
+seed_credentials.txt
