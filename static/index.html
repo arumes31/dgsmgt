@@ -10,16 +10,7 @@
         .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top-color: #3b82f6; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
-    <script>
-        window.onload = () => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                window.location.replace('/dashboard.html');
-            } else {
-                window.location.replace('/login.html');
-            }
-        };
-    </script>
+    <script src="/js/index.js"></script>
 </head>
 <body>
     <div class="spinner"></div>

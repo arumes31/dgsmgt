@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"dgsmgt/internal/auth"
 	"dgsmgt/internal/docker"
 	"dgsmgt/internal/middleware"
@@ -10,7 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -29,12 +31,8 @@ type API struct {
 	upgrader       websocket.Upgrader
 	logger         *zap.Logger
 	validate       *validator.Validate
-	loginAttempts  sync.Map
-}
-
-type loginAttempt struct {
-	count     int
-	lastError time.Time
+	loginLimiter   *loginLimiter
+	tickets        *middleware.TicketStore
 }
 
 func NewAPI(docker *docker.Service, db *gorm.DB, jwtSecret string, allowedOrigins []string, logger *zap.Logger) *API {
@@ -48,6 +46,8 @@ func NewAPI(docker *docker.Service, db *gorm.DB, jwtSecret string, allowedOrigin
 		allowedOrigins: allowedOrigins,
 		logger:         logger,
 		validate:       v,
+		loginLimiter:   newLoginLimiter(),
+		tickets:        middleware.NewTicketStore(30 * time.Second),
 	}
 	a.upgrader = websocket.Upgrader{
 		CheckOrigin: a.checkOrigin,
@@ -64,11 +64,21 @@ func validateCron(fl validator.FieldLevel) bool {
 	return err == nil
 }
 
+// Tickets returns the store used to authenticate WebSocket connections.
+func (a *API) Tickets() *middleware.TicketStore {
+	return a.tickets
+}
+
+// checkOrigin accepts same-origin WebSocket requests and explicitly configured origins only.
 func (a *API) checkOrigin(r *http.Request) bool {
-	if len(a.allowedOrigins) == 0 || (len(a.allowedOrigins) == 1 && a.allowedOrigins[0] == "*") {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// Not a browser request; authentication is still required
 		return true
 	}
-	origin := r.Header.Get("Origin")
+	if u, err := url.Parse(origin); err == nil && strings.EqualFold(u.Host, r.Host) {
+		return true
+	}
 	for _, allowed := range a.allowedOrigins {
 		if origin == allowed {
 			return true
@@ -101,6 +111,10 @@ func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, "Validation failed: "+err.Error())
 		return
 	}
+	if auth.IsWeakPassword(input.Password) {
+		utils.BadRequest(w, "Password is too weak")
+		return
+	}
 
 	hashedPass, err := auth.HashPassword(input.Password)
 	if err != nil {
@@ -108,13 +122,50 @@ func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.db.Model(&models.User{}).Where("id = ?", claims.UserID).Update("password_hash", hashedPass).Error; err != nil {
+	var user models.User
+	if err := a.db.First(&user, claims.UserID).Error; err != nil {
+		utils.NotFound(w, "User not found")
+		return
+	}
+	user.PasswordHash = hashedPass
+	user.MustChangePassword = false
+	// Revoke all other sessions of this user; the caller gets a fresh token below
+	user.TokenVersion++
+	if err := a.db.Save(&user).Error; err != nil {
 		utils.InternalError(w, err.Error())
 		return
 	}
 
+	token, err := auth.GenerateToken(&user, a.jwtSecret)
+	if err != nil {
+		utils.InternalError(w, "Failed to generate token")
+		return
+	}
+
 	a.recordAuditLog(claims, "change_password", nil, "User changed their own password")
-	utils.Success(w, map[string]string{"status": "ok"})
+	utils.Success(w, map[string]string{"status": "ok", "token": token})
+}
+
+// LogoutHandler revokes all tokens of the current user.
+func (a *API) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	if err := a.db.Model(&models.User{}).Where("id = ?", claims.UserID).
+		Update("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+		utils.InternalError(w, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// WSTicketHandler issues a short-lived, single-use ticket for opening a WebSocket.
+func (a *API) WSTicketHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	ticket, err := a.tickets.Issue(claims)
+	if err != nil {
+		utils.InternalError(w, "Failed to issue ticket")
+		return
+	}
+	utils.Success(w, map[string]string{"ticket": ticket})
 }
 
 func (a *API) recordAuditLog(claims *auth.Claims, action string, server *models.Server, details string) {
@@ -148,31 +199,23 @@ func (a *API) LoginHandler(w http.ResponseWriter, r *http.Request, secret string
 		return
 	}
 
-	key := r.RemoteAddr + ":" + creds.Username
-	if val, ok := a.loginAttempts.Load(key); ok {
-		attempt := val.(*loginAttempt)
-		if attempt.count >= 5 && time.Since(attempt.lastError) < 15*time.Minute {
-			a.logger.Warn("Brute force protection triggered", zap.String("key", key))
-			utils.Forbidden(w, "Too many login attempts. Try again in 15 minutes.")
-			return
-		}
+	ip := middleware.RemoteIP(r)
+	if a.loginLimiter.Blocked(ip, creds.Username) {
+		a.logger.Warn("Brute force protection triggered", zap.String("ip", ip), zap.String("username", creds.Username))
+		utils.Forbidden(w, "Too many login attempts. Try again in 15 minutes.")
+		return
 	}
 
 	user, err := auth.Authenticate(creds.Username, creds.Password)
 	if err != nil {
-		a.logger.Warn("Failed login attempt", zap.String("username", creds.Username))
-
-		actual, _ := a.loginAttempts.LoadOrStore(key, &loginAttempt{})
-		attempt := actual.(*loginAttempt)
-		attempt.count++
-		attempt.lastError = time.Now()
-
+		a.logger.Warn("Failed login attempt", zap.String("ip", ip), zap.String("username", creds.Username))
+		a.loginLimiter.Failure(ip, creds.Username)
 		utils.Unauthorized(w, "Invalid credentials")
 		return
 	}
 
 	// Reset attempts on success
-	a.loginAttempts.Delete(key)
+	a.loginLimiter.Success(ip, creds.Username)
 
 	token, err := auth.GenerateToken(user, secret)
 	if err != nil {
@@ -191,12 +234,13 @@ func (a *API) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
+	_, _, target, ok := a.authorize(claims, id)
+	if !ok {
 		utils.Forbidden(w, "Access denied")
 		return
 	}
 
-	info, err := a.docker.GetStatus(r.Context(), id)
+	info, err := a.docker.GetStatus(r.Context(), target)
 	if err != nil {
 		utils.JSON(w, http.StatusNotFound, map[string]string{"status": "not_found"}, err.Error(), nil)
 		return
@@ -211,37 +255,33 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
+	server, userServer, target, ok := a.authorize(claims, id)
+	if !ok {
 		utils.Forbidden(w, "Access denied")
 		return
 	}
-
-	var server models.Server
-	if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err != nil {
+	if server == nil {
 		utils.NotFound(w, "Server not found in database")
 		return
 	}
 
 	// Check specific permissions if not admin
 	if !claims.IsAdmin {
-		var userServer models.UserServer
-		if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err == nil {
-			switch action {
-			case "start":
-				if !userServer.CanStart {
-					utils.Forbidden(w, "Permission denied: cannot start")
-					return
-				}
-			case "stop":
-				if !userServer.CanStop {
-					utils.Forbidden(w, "Permission denied: cannot stop")
-					return
-				}
-			case "restart":
-				if !userServer.CanRestart {
-					utils.Forbidden(w, "Permission denied: cannot restart")
-					return
-				}
+		switch action {
+		case "start":
+			if !userServer.CanStart {
+				utils.Forbidden(w, "Permission denied: cannot start")
+				return
+			}
+		case "stop":
+			if !userServer.CanStop {
+				utils.Forbidden(w, "Permission denied: cannot stop")
+				return
+			}
+		case "restart":
+			if !userServer.CanRestart {
+				utils.Forbidden(w, "Permission denied: cannot restart")
+				return
 			}
 		}
 	}
@@ -249,11 +289,11 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch action {
 	case "start":
-		err = a.docker.Start(ctx, id)
+		err = a.docker.Start(ctx, target)
 	case "stop":
-		err = a.docker.Stop(ctx, id)
+		err = a.docker.Stop(ctx, target)
 	case "restart":
-		err = a.docker.Restart(ctx, id)
+		err = a.docker.Restart(ctx, target)
 	default:
 		utils.BadRequest(w, "Invalid action")
 		return
@@ -265,7 +305,7 @@ func (a *API) ActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.recordAuditLog(claims, action, &server, "Triggered container action")
+	a.recordAuditLog(claims, action, server, "Triggered container action")
 	utils.Success(w, map[string]string{"status": "ok"})
 }
 
@@ -274,7 +314,8 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
+	_, _, target, ok := a.authorize(claims, id)
+	if !ok {
 		utils.Forbidden(w, "Access denied")
 		return
 	}
@@ -286,7 +327,11 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	reader, err := a.docker.Stats(r.Context(), id)
+	// Cancel the Docker stream as soon as the client goes away
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	reader, err := a.docker.Stats(ctx, target)
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error reading stats: "+err.Error()))
 		return
@@ -294,6 +339,7 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = reader.Close() }()
 
 	go func() {
+		defer cancel()
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
@@ -321,23 +367,16 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
-	if !a.canAccess(claims, id) {
+	_, userServer, target, ok := a.authorize(claims, id)
+	if !ok {
 		utils.Forbidden(w, "Access denied")
 		return
 	}
 
 	// Check view logs permission if not admin
-	if !claims.IsAdmin {
-		var server models.Server
-		if err := a.db.Where("container_id LIKE ?", id+"%").First(&server).Error; err == nil {
-			var userServer models.UserServer
-			if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err == nil {
-				if !userServer.CanViewLogs {
-					utils.Forbidden(w, "Permission denied: cannot view logs")
-					return
-				}
-			}
-		}
+	if !claims.IsAdmin && !userServer.CanViewLogs {
+		utils.Forbidden(w, "Permission denied: cannot view logs")
+		return
 	}
 
 	conn, err := a.upgrader.Upgrade(w, r, nil)
@@ -347,7 +386,11 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	reader, err := a.docker.Logs(r.Context(), id, "100")
+	// Cancel the Docker stream as soon as the client goes away
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	reader, err := a.docker.Logs(ctx, target, "100")
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error reading logs: "+err.Error()))
 		return
@@ -355,6 +398,7 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = reader.Close() }()
 
 	go func() {
+		defer cancel()
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
@@ -375,7 +419,7 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err != nil {
-			if err != io.EOF {
+			if err != io.EOF && ctx.Err() == nil {
 				a.logger.Warn("Log reader error", zap.Error(err))
 			}
 			return
@@ -383,22 +427,57 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *API) canAccess(claims *auth.Claims, containerID string) bool {
-	if claims.IsAdmin {
-		return true
-	}
-
+// findServer looks up a managed server by its full container ID, or by an
+// unambiguous hexadecimal ID prefix of at least 12 characters.
+func (a *API) findServer(id string) (*models.Server, error) {
 	var server models.Server
-	if err := a.db.Where("container_id LIKE ?", containerID+"%").First(&server).Error; err != nil {
-		return false
+	if err := a.db.Where("container_id = ?", id).First(&server).Error; err == nil {
+		return &server, nil
+	}
+	if len(id) < 12 || !isHex(id) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var servers []models.Server
+	if err := a.db.Where("container_id LIKE ?", id+"%").Limit(2).Find(&servers).Error; err != nil {
+		return nil, err
+	}
+	if len(servers) != 1 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &servers[0], nil
+}
+
+func isHex(s string) bool {
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// authorize resolves the container referenced by a request and checks that the
+// user may access it. It returns the container ID to pass to Docker, which for
+// managed servers is always the stored ID, never the raw request value.
+func (a *API) authorize(claims *auth.Claims, id string) (*models.Server, *models.UserServer, string, bool) {
+	server, err := a.findServer(id)
+	if claims.IsAdmin {
+		if err == nil {
+			return server, nil, server.ContainerID, true
+		}
+		// Admins may inspect containers that are not managed by the panel
+		return nil, nil, id, true
+	}
+	if err != nil {
+		return nil, nil, "", false
 	}
 
 	var userServer models.UserServer
 	if err := a.db.Where("user_id = ? AND server_id = ?", claims.UserID, server.ID).First(&userServer).Error; err != nil {
-		return false
+		return nil, nil, "", false
 	}
 
-	return true
+	return server, &userServer, server.ContainerID, true
 }
 
 // User Handlers
@@ -432,6 +511,10 @@ func (a *API) ListMyServersHandler(w http.ResponseWriter, r *http.Request) {
 	var result []serverWithPerms
 	for _, s := range servers {
 		sp := serverWithPerms{Server: s}
+		if !claims.IsAdmin {
+			// The config holds env vars (often game server secrets); only admins may see it
+			sp.ConfigJSON = ""
+		}
 		if claims.IsAdmin {
 			sp.CanStart = true
 			sp.CanStop = true
@@ -527,6 +610,15 @@ func (a *API) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.IsAdmin && !input.IsAdmin && a.isLastAdmin(&user) {
+		utils.BadRequest(w, "Cannot remove admin rights from the last admin")
+		return
+	}
+
+	// Revoke existing tokens when identity, privileges or password change
+	if user.Username != input.Username || user.IsAdmin != input.IsAdmin || input.Password != "" {
+		user.TokenVersion++
+	}
 	user.Username = input.Username
 	user.IsAdmin = input.IsAdmin
 	if input.Password != "" {
@@ -559,15 +651,39 @@ func (a *API) DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.db.Delete(&user).Error; err != nil {
+	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
+	if user.ID == claims.UserID {
+		utils.BadRequest(w, "You cannot delete your own account")
+		return
+	}
+	if user.IsAdmin && a.isLastAdmin(&user) {
+		utils.BadRequest(w, "Cannot delete the last admin")
+		return
+	}
+
+	err := a.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", user.ID).Delete(&models.UserServer{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&user).Error
+	})
+	if err != nil {
 		utils.InternalError(w, err.Error())
 		return
 	}
 
-	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
 	a.recordAuditLog(claims, "delete_user", nil, fmt.Sprintf("Deleted user: %s", user.Username))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// isLastAdmin reports whether user is the only remaining admin.
+func (a *API) isLastAdmin(user *models.User) bool {
+	var count int64
+	if err := a.db.Model(&models.User{}).Where("is_admin = ? AND id <> ?", true, user.ID).Count(&count).Error; err != nil {
+		return true
+	}
+	return count == 0
 }
 
 func (a *API) ListServersHandler(w http.ResponseWriter, r *http.Request) {
@@ -595,6 +711,11 @@ func (a *API) CreateServerHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := a.validate.Struct(input); err != nil {
 		utils.BadRequest(w, "Validation failed: "+err.Error())
+		return
+	}
+
+	if err := a.docker.ValidateCreate(input.Image, input.Volumes); err != nil {
+		utils.BadRequest(w, err.Error())
 		return
 	}
 

@@ -4,11 +4,23 @@ import (
 	"dgsmgt/internal/auth"
 	"dgsmgt/internal/db"
 	"dgsmgt/internal/models"
+	"flag"
+	"fmt"
 	"log"
 	"os"
 )
 
+// seedCredentialsFile receives the generated demo password (in the working directory).
+const seedCredentialsFile = "seed_credentials.txt"
+
+// Seeds demo users and servers for local development only.
 func main() {
+	dev := flag.Bool("dev", false, "confirm that the target database is a local development database")
+	flag.Parse()
+	if !*dev {
+		log.Fatal("The seed command creates demo accounts and is meant for development only; re-run with -dev to confirm")
+	}
+
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		dsn = "dgsmgt.db"
@@ -37,8 +49,17 @@ func main() {
 		},
 	}
 
+	// A random password per run, so seeded databases never share known credentials
+	password, err := auth.RandomString(12)
+	if err != nil {
+		log.Fatal("Failed to generate password:", err)
+	}
+	hashedPass, err := auth.HashPassword(password)
+	if err != nil {
+		log.Fatal("Failed to hash password:", err)
+	}
+
 	for i := range users {
-		hashedPass, _ := auth.HashPassword("password123")
 		users[i].PasswordHash = hashedPass
 		
 		// Use FirstOrCreate to avoid duplicates
@@ -96,4 +117,10 @@ func main() {
 	}
 
 	log.Println("Seeding complete!")
+	// Stored in a private file instead of the console so it does not end up in logs
+	content := fmt.Sprintf("Password for newly created demo users (admin, user1, user2): %s\n", password)
+	if err := os.WriteFile(seedCredentialsFile, []byte(content), 0o600); err != nil {
+		log.Fatal("Failed to write credentials file:", err)
+	}
+	log.Println("Demo user password written to " + seedCredentialsFile)
 }
