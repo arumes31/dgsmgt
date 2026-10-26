@@ -8,16 +8,24 @@ services:
     container_name: dgsmgt
     restart: always
     ports:
-      - "${PORT:-8080}:8080"
+      # Only reachable from the host by default; put a TLS reverse proxy in front
+      # or set BIND_ADDR=0.0.0.0 to expose the panel directly
+      - "${BIND_ADDR:-127.0.0.1}:${PORT:-8080}:8080"
     volumes:
       - db_data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - DATABASE_URL=/app/data/dgsmgt.db
-      - JWT_SECRET=${JWT_SECRET:-default_secret_change_me}
+      # Leave empty to auto-generate a secret stored in the data volume
+      - JWT_SECRET=${JWT_SECRET:-}
       - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      # Leave empty to generate a random initial password (printed once in the logs)
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - TRUST_PROXY=${TRUST_PROXY:-false}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - ALLOWED_BIND_ROOT=${ALLOWED_BIND_ROOT:-}
+      - ALLOWED_IMAGE_PREFIXES=${ALLOWED_IMAGE_PREFIXES:-}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 30s

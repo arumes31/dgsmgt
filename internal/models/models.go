@@ -7,8 +7,12 @@ import (
 type User struct {
 	gorm.Model
 	Username     string `gorm:"uniqueIndex;not null"`
-	PasswordHash string `gorm:"not null"`
+	PasswordHash string `gorm:"not null" json:"-"`
 	IsAdmin      bool   `gorm:"default:false"`
+	// MustChangePassword blocks API access (except changing the password) until the user sets a new password
+	MustChangePassword bool `gorm:"default:false"`
+	// TokenVersion is embedded in issued JWTs; bumping it revokes all existing tokens of the user
+	TokenVersion uint     `gorm:"default:0" json:"-"`
 	Servers      []Server `gorm:"many2many:user_servers;"`
 }
 
