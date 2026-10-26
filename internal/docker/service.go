@@ -39,7 +39,8 @@ type ContainerInfo struct {
 }
 
 type Service struct {
-	cli DockerClient
+	cli    DockerClient
+	policy Policy
 }
 
 const defaultTimeout = 10 * time.Second
@@ -54,6 +55,19 @@ func NewService() (*Service, error) {
 
 func NewServiceWithClient(cli DockerClient) *Service {
 	return &Service{cli: cli}
+}
+
+// SetPolicy configures the restrictions applied when creating containers.
+func (s *Service) SetPolicy(p Policy) {
+	s.policy = p
+}
+
+// ValidateCreate checks a container request against the configured policy.
+func (s *Service) ValidateCreate(imageName string, volumes []string) error {
+	if err := s.policy.ValidateImage(imageName); err != nil {
+		return err
+	}
+	return s.policy.ValidateVolumes(volumes)
 }
 
 func (s *Service) GetStatus(ctx context.Context, containerID string) (*ContainerInfo, error) {
@@ -129,6 +143,9 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 	if !isValidContainerName(name) {
 		return "", fmt.Errorf("invalid container name: %s", name)
 	}
+	if err := s.ValidateCreate(imageName, volumes); err != nil {
+		return "", err
+	}
 
 	// Docker pull can take longer, use longer timeout
 	pullCtx, pullCancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -159,6 +176,7 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 	hostConfig := &container.HostConfig{
 		PortBindings: portBindings,
 		Binds:        volumes,
+		SecurityOpt:  []string{"no-new-privileges:true"},
 	}
 
 	createCtx, createCancel := context.WithTimeout(ctx, defaultTimeout)
