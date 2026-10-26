@@ -30,10 +30,13 @@ fi
 if [ ! -f .env ]; then
   echo "Setting up .env file..."
   cp .env.example .env
-  # Generate a random JWT secret
-  SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-  sed -i "s/replace_me_with_a_long_random_string_in_production/$SECRET/g" .env
-  echo "A random JWT_SECRET has been generated and saved to .env"
+  chmod 600 .env
+  # Generate a random JWT secret and initial admin password
+  SECRET=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 48)
+  ADMIN_PASS=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 20)
+  sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$SECRET/" .env
+  sed -i "s/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$ADMIN_PASS/" .env
+  echo "A random JWT_SECRET and ADMIN_PASSWORD have been generated and saved to .env"
 fi
 
 # Build and start the panel
@@ -42,6 +45,8 @@ docker compose up -d --build
 
 echo "----------------------------------------------------"
 echo "dgsmgt panel installation complete!"
-echo "You can access the panel on port 8080 (default)."
-echo "Default credentials (if not changed in .env): admin / admin"
+echo "The panel listens on 127.0.0.1:8080 (default). Put a TLS reverse proxy"
+echo "in front of it, or set BIND_ADDR=0.0.0.0 in .env to expose it directly."
+echo "Admin credentials: see ADMIN_USER / ADMIN_PASSWORD in .env"
+echo "(if ADMIN_PASSWORD is empty, the generated password is printed once in 'docker compose logs')."
 echo "----------------------------------------------------"

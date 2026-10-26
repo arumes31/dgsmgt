@@ -6,15 +6,18 @@ services:
     container_name: dgsmgt
     restart: always
     ports:
-      - "8080:8080"
+      # Only reachable from the host by default; put a TLS reverse proxy in front
+      # or change to "8080:8080" to expose the panel directly
+      - "127.0.0.1:8080:8080"
     volumes:
       - db_data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - DATABASE_URL=/app/data/dgsmgt.db
-      - JWT_SECRET=change_me_in_production
+      # Leave JWT_SECRET unset to auto-generate one in the data volume,
+      # or set at least 32 random characters (e.g. `openssl rand -hex 32`)
       - ADMIN_USER=admin
-      - ADMIN_PASSWORD=admin
+      # Leave ADMIN_PASSWORD unset to generate a random initial password (printed once in the logs)
       - TRUST_PROXY=false
     # Note: Ensure you run 'docker login ghcr.io' first if the repository is private
 

@@ -1,4 +1,4 @@
-FROM golang:1.27.2-alpine3.24@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS builder
+FROM golang:1.27.3-alpine3.24@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS builder
 
 WORKDIR /app
 
@@ -8,14 +8,24 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o soulmask-control ./cmd/server/main.go
 
-FROM alpine:latest
+FROM alpine:3.24@sha256:71e9b7bae160ba167fa17414401b94cbcdaf3c32feeab9298bd794a2a0614c35
+
+# su-exec lets the entrypoint drop root after fixing volume ownership and Docker socket access
+RUN apk add --no-cache su-exec \
+    && addgroup -S dgsmgt \
+    && adduser -S -D -H -G dgsmgt dgsmgt
 
 WORKDIR /app
 COPY --from=builder /app/soulmask-control .
 COPY static/ static/
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /app/data && chmod 777 /app/data
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh \
+    && mkdir -p /app/data \
+    && chown dgsmgt:dgsmgt /app/data \
+    && chmod 0750 /app/data
 
 EXPOSE 8080
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["./soulmask-control"]
