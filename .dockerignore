@@ -20,3 +20,5 @@ data/
 .qodo/
 *.swp
 .DS_Store
+jwt_secret
+.env
