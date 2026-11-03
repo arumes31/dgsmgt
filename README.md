@@ -94,12 +94,19 @@ Environment variables:
 - `ADMIN_USER`: Initial admin username (default: `admin`)
 - `ADMIN_PASSWORD`: Initial admin password (min. 8 characters, only used when the database has no users). If unset, a
   random password is generated, printed once in the log, and must be changed at first login.
+  Admin accounts that still use a known default password from earlier releases are disabled at startup: their
+  password is replaced with `ADMIN_PASSWORD` (if set and strong) or a random one-time password printed once in the
+  log, and must be changed at the next login.
 - `TRUST_PROXY`: Set to `true` if behind a reverse proxy
 - `TRUSTED_PROXIES`: Comma-separated CIDRs of proxies whose `X-Forwarded-For` / `CF-Connecting-IP` headers are trusted
   when `TRUST_PROXY=true` (default: loopback and private ranges; add the Cloudflare ranges when using Cloudflare)
 - `ALLOWED_ORIGINS`: Comma-separated extra origins allowed for CORS and WebSockets (default: same origin only)
-- `ALLOWED_BIND_ROOT`: Host directory under which bind mounts may be used for created containers. Empty (default)
-  allows named volumes only; the Docker socket and `/` can never be mounted.
+- `ALLOWED_BIND_ROOT`: Dedicated host directory under which bind mounts may be used for created containers. Empty
+  (default) allows named volumes only. The directory must also be mounted into the panel container at the **same
+  path** (e.g. `-v /srv/games:/srv/games`) so that bind sources, including symlinks, can be resolved and verified
+  before they are handed to Docker; the panel refuses to start otherwise. Roots that are, contain or lie inside
+  `/run`, `/var/run`, `/var/lib/docker`, `/var/lib/containerd`, `/proc`, `/sys` or `/dev` are rejected, and
+  `*.sock` paths and `/` can never be mounted.
 - `ALLOWED_IMAGE_PREFIXES`: Comma-separated image prefixes allowed for created containers, e.g.
   `docker.io/library/,ghcr.io/myorg/` (default: any image)
 - `BIND_ADDR` (docker compose only): host address of the published port (default: `127.0.0.1`)

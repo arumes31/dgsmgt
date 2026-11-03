@@ -21,6 +21,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -133,13 +134,41 @@ func main() {
 		}
 	}
 
-	// Force a password change for admins still using a default password from earlier releases
+	// Admins still using a publicly known default password from earlier releases
+	// must not be able to log in with it: knowing the default would otherwise be
+	// enough to complete the forced password change. Replace it with a random
+	// one-time password that only the operator sees, or with ADMIN_PASSWORD.
 	var admins []models.User
-	database.Where("is_admin = ? AND must_change_password = ?", true, false).Find(&admins)
+	database.Where("is_admin = ?", true).Find(&admins)
 	for _, u := range admins {
-		if auth.IsDefaultPassword(u.PasswordHash) {
-			logger.Warn("Admin user still has a default password; a password change is required on next login", zap.String("username", u.Username))
-			database.Model(&models.User{}).Where("id = ?", u.ID).Update("must_change_password", true)
+		if !auth.IsDefaultPassword(u.PasswordHash) {
+			continue
+		}
+		replacement, generated := adminPass, false
+		if replacement == "" || auth.IsWeakPassword(replacement) {
+			pass, err := auth.RandomString(18)
+			if err != nil {
+				logger.Fatal("Failed to generate a replacement admin password", zap.Error(err))
+			}
+			replacement, generated = pass, true
+		}
+		hashed, err := auth.HashPassword(replacement)
+		if err != nil {
+			logger.Fatal("Failed to hash replacement admin password", zap.Error(err))
+		}
+		if err := database.Model(&models.User{}).Where("id = ?", u.ID).Updates(map[string]any{
+			"password_hash":        hashed,
+			"must_change_password": true,
+			"token_version":        gorm.Expr("token_version + 1"),
+		}).Error; err != nil {
+			logger.Fatal("Failed to disable a default admin password", zap.String("username", u.Username), zap.Error(err))
+		}
+		if generated {
+			logger.Warn("Admin user had a known default password, which has been disabled; log in with this one-time password and change it",
+				zap.String("username", u.Username), zap.String("password", replacement))
+		} else {
+			logger.Warn("Admin user had a known default password, which has been replaced with ADMIN_PASSWORD; a password change is required on next login",
+				zap.String("username", u.Username))
 		}
 	}
 
@@ -152,8 +181,8 @@ func main() {
 		BindRoot:             os.Getenv("ALLOWED_BIND_ROOT"),
 		AllowedImagePrefixes: splitList(os.Getenv("ALLOWED_IMAGE_PREFIXES")),
 	}
-	if policy.BindRoot == "/" {
-		logger.Fatal("ALLOWED_BIND_ROOT must not be '/'")
+	if err := policy.Validate(); err != nil {
+		logger.Fatal("Refusing to start with an unsafe ALLOWED_BIND_ROOT", zap.Error(err))
 	}
 	dockerService.SetPolicy(policy)
 
