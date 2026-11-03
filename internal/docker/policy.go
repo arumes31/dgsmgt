@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -200,6 +201,13 @@ func (p Policy) resolveExisting(name string) (string, error) {
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			return "", err
+		}
+		// A dangling symlink also reports not-exist, but its target is
+		// unverified and Docker would follow it on the host: reject it.
+		if p.evalSymlinks == nil {
+			if _, lerr := os.Lstat(filepath.FromSlash(current)); lerr == nil {
+				return "", fmt.Errorf("%q is a dangling symlink", current)
+			}
 		}
 		parent := path.Dir(current)
 		if parent == current {

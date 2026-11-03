@@ -99,6 +99,15 @@ func TestPolicyResolvesRealSymlinks(t *testing.T) {
 	if _, err := p.ResolveVolumes([]string{root + "/escape/sub:/data"}); err == nil {
 		t.Error("missing path below an escaping symlink must be rejected")
 	}
+	if err := os.Symlink(base+"/does-not-exist-yet", root+"/dangling"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.ResolveVolumes([]string{root + "/dangling:/data"}); err == nil {
+		t.Error("dangling symlink must be rejected")
+	}
+	if _, err := p.ResolveVolumes([]string{root + "/dangling/sub:/data"}); err == nil {
+		t.Error("path below a dangling symlink must be rejected")
+	}
 	got, err := p.ResolveVolumes([]string{root + "/alias:/data:ro"})
 	if err != nil {
 		t.Fatal(err)

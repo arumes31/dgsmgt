@@ -139,7 +139,9 @@ func main() {
 	// enough to complete the forced password change. Replace it with a random
 	// one-time password that only the operator sees, or with ADMIN_PASSWORD.
 	var admins []models.User
-	database.Where("is_admin = ?", true).Find(&admins)
+	if err := database.Where("is_admin = ?", true).Find(&admins).Error; err != nil {
+		logger.Fatal("Failed to load admin accounts for the default-password check", zap.Error(err))
+	}
 	for _, u := range admins {
 		if !auth.IsDefaultPassword(u.PasswordHash) {
 			continue
