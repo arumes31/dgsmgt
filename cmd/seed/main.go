@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 // seedCredentialsFile receives the generated demo password (in the working directory).
@@ -49,23 +50,29 @@ func main() {
 		},
 	}
 
-	// A random password per run, so seeded databases never share known credentials
-	password, err := auth.RandomString(12)
-	if err != nil {
-		log.Fatal("Failed to generate password:", err)
-	}
-	hashedPass, err := auth.HashPassword(password)
-	if err != nil {
-		log.Fatal("Failed to hash password:", err)
-	}
-
+	// A separate random password per account and run, so seeded databases never
+	// share known credentials and an ordinary account's password never unlocks
+	// the administrator account.
+	passwords := make(map[string]string, len(users))
 	for i := range users {
-		users[i].PasswordHash = hashedPass
-		
-		// Use FirstOrCreate to avoid duplicates
-		err := database.Where(models.User{Username: users[i].Username}).FirstOrCreate(&users[i]).Error
+		password, err := auth.RandomString(12)
 		if err != nil {
-			log.Printf("Failed to create user %s: %v", users[i].Username, err)
+			log.Fatal("Failed to generate password:", err)
+		}
+		hashedPass, err := auth.HashPassword(password)
+		if err != nil {
+			log.Fatal("Failed to hash password:", err)
+		}
+		users[i].PasswordHash = hashedPass
+
+		// Use FirstOrCreate to avoid duplicates; existing users keep their password
+		result := database.Where(models.User{Username: users[i].Username}).FirstOrCreate(&users[i])
+		if result.Error != nil {
+			log.Printf("Failed to create user %s: %v", users[i].Username, result.Error)
+			continue
+		}
+		if result.RowsAffected == 1 {
+			passwords[users[i].Username] = password
 		}
 	}
 
@@ -117,10 +124,17 @@ func main() {
 	}
 
 	log.Println("Seeding complete!")
-	// Stored in a private file instead of the console so it does not end up in logs
-	content := fmt.Sprintf("Password for newly created demo users (admin, user1, user2): %s\n", password)
-	if err := os.WriteFile(seedCredentialsFile, []byte(content), 0o600); err != nil {
+	// Stored in a private file instead of the console so it does not end up in logs.
+	// Each line names one account; share each password only with its holder.
+	var content strings.Builder
+	content.WriteString("Passwords for newly created demo users (one per account):\n")
+	for _, u := range users {
+		if password, ok := passwords[u.Username]; ok {
+			fmt.Fprintf(&content, "%s: %s\n", u.Username, password)
+		}
+	}
+	if err := os.WriteFile(seedCredentialsFile, []byte(content.String()), 0o600); err != nil {
 		log.Fatal("Failed to write credentials file:", err)
 	}
-	log.Println("Demo user password written to " + seedCredentialsFile)
+	log.Println("Demo user passwords written to " + seedCredentialsFile)
 }
