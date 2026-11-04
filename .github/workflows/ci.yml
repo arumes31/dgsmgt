@@ -39,7 +39,7 @@ jobs:
           golangci-lint run
 
       - name: Run Gosec Security Scan
-        uses: securego/gosec@7b1b5cebe007d62fb58eacb90fc571112939ec30 # Go 1.27.2 support
+        uses: securego/gosec@5eb1d104ef85ff2c905c877eb600e8c1dee33a22 # v2.30.0
         with:
           args: ./...
 
