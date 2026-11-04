@@ -63,11 +63,26 @@ func (s *Service) SetPolicy(p Policy) {
 }
 
 // ValidateCreate checks a container request against the configured policy.
-func (s *Service) ValidateCreate(imageName string, volumes []string) error {
-	if err := s.policy.ValidateImage(imageName); err != nil {
-		return err
+func (s *Service) ValidateCreate(imageName string, ports []string, volumes []string) error {
+	_, _, err := s.prepareCreate(imageName, ports, volumes)
+	return err
+}
+
+// prepareCreate validates a container request and returns the canonical image
+// reference and the resolved volume specs that must be handed to Docker.
+func (s *Service) prepareCreate(imageName string, ports []string, volumes []string) (string, []string, error) {
+	canonical, err := s.policy.CanonicalImage(imageName)
+	if err != nil {
+		return "", nil, err
 	}
-	return s.policy.ValidateVolumes(volumes)
+	if err := ValidatePorts(ports); err != nil {
+		return "", nil, err
+	}
+	binds, err := s.policy.ResolveVolumes(volumes)
+	if err != nil {
+		return "", nil, err
+	}
+	return canonical, binds, nil
 }
 
 func (s *Service) GetStatus(ctx context.Context, containerID string) (*ContainerInfo, error) {
@@ -143,7 +158,10 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 	if !isValidContainerName(name) {
 		return "", fmt.Errorf("invalid container name: %s", name)
 	}
-	if err := s.ValidateCreate(imageName, volumes); err != nil {
+	// Validate everything (including the port budget) before pulling, and use
+	// the validated canonical image and resolved binds from here on.
+	canonicalImage, binds, err := s.prepareCreate(imageName, ports, volumes)
+	if err != nil {
 		return "", err
 	}
 
@@ -152,7 +170,7 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 	defer pullCancel()
 
 	// Pull image first
-	rc, err := s.cli.ImagePull(pullCtx, imageName, image.PullOptions{})
+	rc, err := s.cli.ImagePull(pullCtx, canonicalImage, image.PullOptions{})
 	if err != nil {
 		return "", fmt.Errorf("pulling image: %w", err)
 	}
@@ -168,14 +186,14 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 	}
 
 	config := &container.Config{
-		Image:        imageName,
+		Image:        canonicalImage,
 		Env:          env,
 		ExposedPorts: exposedPorts,
 	}
 
 	hostConfig := &container.HostConfig{
 		PortBindings: portBindings,
-		Binds:        volumes,
+		Binds:        binds,
 		SecurityOpt:  []string{"no-new-privileges:true"},
 	}
 

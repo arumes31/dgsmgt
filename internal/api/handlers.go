@@ -21,6 +21,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type API struct {
@@ -127,14 +128,23 @@ func (a *API) ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		utils.NotFound(w, "User not found")
 		return
 	}
-	user.PasswordHash = hashedPass
-	user.MustChangePassword = false
-	// Revoke all other sessions of this user; the caller gets a fresh token below
-	user.TokenVersion++
-	if err := a.db.Save(&user).Error; err != nil {
-		utils.InternalError(w, err.Error())
+	// Revoke all other sessions of this user; the caller gets a fresh token below.
+	// The update only applies while the account still has the token version the
+	// caller authenticated with, so a concurrent reset or revocation wins.
+	newVersion, ok, err := a.updateUserIfVersion(user.ID, claims.TokenVersion, map[string]any{
+		"password_hash":        hashedPass,
+		"must_change_password": false,
+	})
+	if err != nil {
+		utils.InternalError(w, "Failed to update password")
 		return
 	}
+	if !ok {
+		utils.JSON(w, http.StatusConflict, nil, "Account changed concurrently; sign in again", nil)
+		return
+	}
+	user.TokenVersion = newVersion
+	user.MustChangePassword = false
 
 	token, err := auth.GenerateToken(&user, a.jwtSecret)
 	if err != nil {
@@ -338,6 +348,9 @@ func (a *API) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = reader.Close() }()
 
+	// Stop streaming as soon as the account, session or assignment is revoked
+	go a.watchStreamAccess(ctx, cancel, conn, reader, claims, id, false)
+
 	go func() {
 		defer cancel()
 		for {
@@ -397,6 +410,10 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = reader.Close() }()
 
+	// Stop streaming as soon as the account, session, assignment or log
+	// permission is revoked
+	go a.watchStreamAccess(ctx, cancel, conn, reader, claims, id, true)
+
 	go func() {
 		defer cancel()
 		for {
@@ -422,6 +439,60 @@ func (a *API) LogsHandler(w http.ResponseWriter, r *http.Request) {
 			if err != io.EOF && ctx.Err() == nil {
 				a.logger.Warn("Log reader error", zap.Error(err))
 			}
+			return
+		}
+	}
+}
+
+// streamRecheckInterval is how often long-lived streams re-check authorization.
+var streamRecheckInterval = 5 * time.Second
+
+// streamAccessAllowed re-evaluates, against the current database state, whether
+// the holder of claims may still receive the stream for id.
+func (a *API) streamAccessAllowed(claims *auth.Claims, id string, needLogs bool) bool {
+	var user models.User
+	if err := a.db.First(&user, claims.UserID).Error; err != nil || user.TokenVersion != claims.TokenVersion {
+		return false
+	}
+	if user.MustChangePassword {
+		return false
+	}
+	if claims.ExpiresAt != nil && time.Now().After(claims.ExpiresAt.Time) {
+		return false
+	}
+	current := *claims
+	current.Username = user.Username
+	current.IsAdmin = user.IsAdmin
+	_, userServer, _, ok := a.authorize(&current, id)
+	if !ok {
+		return false
+	}
+	if needLogs && !current.IsAdmin && (userServer == nil || !userServer.CanViewLogs) {
+		return false
+	}
+	return true
+}
+
+// watchStreamAccess periodically revalidates a stream's authorization and
+// tears the stream down once access has been revoked.
+func (a *API) watchStreamAccess(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, stream io.Closer, claims *auth.Claims, id string, needLogs bool) {
+	ticker := time.NewTicker(streamRecheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if a.streamAccessAllowed(claims, id, needLogs) {
+				continue
+			}
+			a.logger.Info("Closing stream after access was revoked", zap.Uint("user_id", claims.UserID), zap.String("id", id))
+			cancel()
+			_ = stream.Close()
+			_ = conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "access revoked"),
+				time.Now().Add(time.Second))
+			_ = conn.Close()
 			return
 		}
 	}
@@ -615,25 +686,41 @@ func (a *API) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke existing tokens when identity, privileges or password change
-	if user.Username != input.Username || user.IsAdmin != input.IsAdmin || input.Password != "" {
-		user.TokenVersion++
+	// Only the intended fields are written, and only while the account still
+	// matches the version loaded above, so concurrent password changes or
+	// revocations are never overwritten by this stale snapshot.
+	changes := map[string]any{
+		"username": input.Username,
+		"is_admin": input.IsAdmin,
 	}
-	user.Username = input.Username
-	user.IsAdmin = input.IsAdmin
 	if input.Password != "" {
 		hashedPass, err := auth.HashPassword(input.Password)
 		if err != nil {
 			utils.InternalError(w, "Error hashing password")
 			return
 		}
-		user.PasswordHash = hashedPass
+		changes["password_hash"] = hashedPass
 	}
-
-	if err := a.db.Save(&user).Error; err != nil {
+	// Revoke existing tokens when identity, privileges or password change
+	revoke := user.Username != input.Username || user.IsAdmin != input.IsAdmin || input.Password != ""
+	var ok bool
+	var err error
+	if revoke {
+		user.TokenVersion, ok, err = a.updateUserIfVersion(user.ID, user.TokenVersion, changes)
+	} else {
+		res := a.db.Model(&models.User{}).Where("id = ? AND token_version = ?", user.ID, user.TokenVersion).Updates(changes)
+		err, ok = res.Error, res.RowsAffected == 1
+	}
+	if err != nil {
 		utils.InternalError(w, err.Error())
 		return
 	}
+	if !ok {
+		utils.JSON(w, http.StatusConflict, nil, "User changed concurrently; reload and try again", nil)
+		return
+	}
+	user.Username = input.Username
+	user.IsAdmin = input.IsAdmin
 
 	claims := r.Context().Value(middleware.ClaimsKey).(*auth.Claims)
 	a.recordAuditLog(claims, "update_user", nil, fmt.Sprintf("Updated user: %s", user.Username))
@@ -677,6 +764,25 @@ func (a *API) DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// updateUserIfVersion applies changes and advances the token version by one,
+// but only if the (non-deleted) account still has expectedVersion. It returns
+// the committed version and whether the update was applied.
+func (a *API) updateUserIfVersion(userID, expectedVersion uint, changes map[string]any) (uint, bool, error) {
+	update := make(map[string]any, len(changes)+1)
+	for k, v := range changes {
+		update[k] = v
+	}
+	next := expectedVersion + 1
+	update["token_version"] = next
+	res := a.db.Model(&models.User{}).
+		Where("id = ? AND token_version = ?", userID, expectedVersion).
+		Updates(update)
+	if res.Error != nil {
+		return 0, false, res.Error
+	}
+	return next, res.RowsAffected == 1, nil
+}
+
 // isLastAdmin reports whether user is the only remaining admin.
 func (a *API) isLastAdmin(user *models.User) bool {
 	var count int64
@@ -714,7 +820,7 @@ func (a *API) CreateServerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.docker.ValidateCreate(input.Image, input.Volumes); err != nil {
+	if err := a.docker.ValidateCreate(input.Image, input.Ports, input.Volumes); err != nil {
 		utils.BadRequest(w, err.Error())
 		return
 	}
@@ -806,7 +912,13 @@ func (a *API) AssignServerHandler(w http.ResponseWriter, r *http.Request) {
 		CanViewLogs: input.CanViewLogs,
 	}
 
-	if err := a.db.Save(&userServer).Error; err != nil {
+	// Upsert every permission column explicitly: a plain Save falls back to an
+	// INSERT that would replace explicit false values with column defaults.
+	err := a.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "server_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"can_start", "can_stop", "can_restart", "can_view_logs"}),
+	}).Select("*").Create(&userServer).Error
+	if err != nil {
 		utils.InternalError(w, err.Error())
 		return
 	}

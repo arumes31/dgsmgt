@@ -29,10 +29,12 @@ type Server struct {
 type UserServer struct {
 	UserID      uint `gorm:"primaryKey"`
 	ServerID    uint `gorm:"primaryKey"`
-	CanStart    bool `gorm:"default:true"`
-	CanStop     bool `gorm:"default:true"`
-	CanRestart  bool `gorm:"default:true"`
-	CanViewLogs bool `gorm:"default:true"`
+	// Permissions are deny-by-default so an explicit false is never replaced
+	// by an insertion default.
+	CanStart    bool `gorm:"default:false"`
+	CanStop     bool `gorm:"default:false"`
+	CanRestart  bool `gorm:"default:false"`
+	CanViewLogs bool `gorm:"default:false"`
 }
 
 type AuditLog struct {
