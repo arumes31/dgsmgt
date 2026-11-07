@@ -11,6 +11,7 @@ A modern, lightweight game server management panel built with Go and plain HTML/
   - **Admins**: Full control over users, servers, and assignments.
   - **Users**: Access only to assigned servers with specific permissions (Start, Stop, Restart, View Logs).
 - **Real-time Monitoring**: Live log streaming via WebSockets.
+- **Scheduled Restarts**: Per-server automated restart schedule using standard 5-field cron syntax (`cron_schedule`).
 - **Secure**: JWT-based authentication with bcrypt password hashing.
 - **CI/CD**: Fully automated pipeline with GitHub Actions:
   - **Linting**: Golangci-lint for code quality.
@@ -62,7 +63,6 @@ You can run the latest pre-built image from the GitHub Container Registry:
 
 1. Create a `docker-compose.yml` file:
    ```yaml
-   version: '3.8'
    services:
      dgsmgt:
        image: ghcr.io/arumes31/dgsmgt:latest
@@ -88,9 +88,13 @@ You can run the latest pre-built image from the GitHub Container Registry:
 ## Configuration
 
 Environment variables:
+- `PORT`: HTTP port to listen on (default: `8080`)
+- `DEBUG`: Set to `true` to enable verbose development logging
 - `DATABASE_URL`: Path to SQLite DB (default: `dgsmgt.db`)
 - `JWT_SECRET`: Secret for JWT signing, at least 32 bytes. Known placeholder values are rejected and the server refuses
   to start. If unset, a random secret is generated and stored in `jwt_secret` next to the database (or `JWT_SECRET_FILE`).
+- `JWT_SECRET_FILE`: Path to a file containing the JWT secret (useful with Docker secrets / mounted secret files)
+- `DOCKER_HOST`: Custom Docker daemon socket/URL (default: `unix:///var/run/docker.sock`)
 - `ADMIN_USER`: Initial admin username (default: `admin`)
 - `ADMIN_PASSWORD`: Initial admin password (min. 8 characters, only used when the database has no users). If unset, a
   random password is generated, printed once in the log, and must be changed at first login.

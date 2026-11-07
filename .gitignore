@@ -1,4 +1,6 @@
 soulmask-control
+dgsmgt
+docs/
 *.exe
 *.log
 .qodo/
