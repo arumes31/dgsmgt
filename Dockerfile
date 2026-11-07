@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o soulmask-control ./cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o dgsmgt ./cmd/server/main.go
 
 FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
@@ -16,7 +16,7 @@ RUN apk add --no-cache su-exec \
     && adduser -S -D -H -G dgsmgt dgsmgt
 
 WORKDIR /app
-COPY --from=builder /app/soulmask-control .
+COPY --from=builder /app/dgsmgt .
 COPY static/ static/
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
@@ -28,4 +28,4 @@ RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh \
 EXPOSE 8080
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["./soulmask-control"]
+CMD ["./dgsmgt"]
