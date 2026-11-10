@@ -226,3 +226,33 @@ func TestCreateUsesValidatedImageAndRejectsBeforePull(t *testing.T) {
 		t.Error("the image must not be pulled before ports are validated")
 	}
 }
+
+func TestCreateRejectsBindSwappedDuringPull(t *testing.T) {
+	resolved := map[string]string{"/srv/games": "/srv/games", "/srv/games/a": "/srv/games/a"}
+	createCalled := false
+	mock := &mockDockerClient{
+		pullFunc: func(ctx context.Context, ref string, options image.PullOptions) (io.ReadCloser, error) {
+			// Simulate a workload replacing the validated directory with a
+			// symlink outside the bind root while the image is pulled.
+			resolved["/srv/games/a"] = "/etc"
+			return io.NopCloser(strings.NewReader("")), nil
+		},
+		createFunc: func(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error) {
+			createCalled = true
+			return container.CreateResponse{ID: "id"}, nil
+		},
+	}
+	svc := NewServiceWithClient(mock)
+	svc.SetPolicy(Policy{BindRoot: "/srv/games", evalSymlinks: func(name string) (string, error) {
+		if target, ok := resolved[name]; ok {
+			return target, nil
+		}
+		return "", os.ErrNotExist
+	}})
+	if _, err := svc.Create(context.Background(), "srv", "alpine", nil, nil, []string{"/srv/games/a:/data"}); err == nil {
+		t.Fatal("a bind source swapped during the pull must be rejected")
+	}
+	if createCalled {
+		t.Error("the container must not be created after the bind source changed")
+	}
+}

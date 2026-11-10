@@ -111,6 +111,9 @@ Environment variables:
   before they are handed to Docker; the panel refuses to start otherwise. Roots that are, contain or lie inside
   `/run`, `/var/run`, `/var/lib/docker`, `/var/lib/containerd`, `/proc`, `/sys` or `/dev` are rejected, and
   `*.sock` paths and `/` can never be mounted.
+  Bind sources are re-verified right before the container is created, but Docker resolves them again on every
+  start: do not give workloads write access to the bind root itself (mount per-server subdirectories instead), or a
+  workload could later replace a directory with a symlink that Docker follows.
 - `ALLOWED_IMAGE_PREFIXES`: Comma-separated image prefixes allowed for created containers, e.g.
   `docker.io/library/,ghcr.io/myorg/` (default: any image)
 - `BIND_ADDR` (docker compose only): host address of the published port (default: `127.0.0.1`)
