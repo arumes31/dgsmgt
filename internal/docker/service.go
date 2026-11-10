@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -85,6 +86,28 @@ func (s *Service) prepareCreate(imageName string, ports []string, volumes []stri
 	return canonical, binds, nil
 }
 
+// reverifyBinds resolves volumes again and fails if any bind source no longer
+// passes the policy or now resolves to a different host path.
+func (s *Service) reverifyBinds(volumes []string, binds []string) error {
+	current, err := s.policy.ResolveVolumes(volumes)
+	if err != nil {
+		return err
+	}
+	if !slices.Equal(current, binds) {
+		return fmt.Errorf("bind mount sources changed while the image was pulled; retry the request")
+	}
+	return nil
+}
+
+// shortID returns the 12-character short form of a Docker ID without
+// panicking on shorter values from a non-standard daemon.
+func shortID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
+
 func (s *Service) GetStatus(ctx context.Context, containerID string) (*ContainerInfo, error) {
 	// Add timeout to Docker API call
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
@@ -105,7 +128,7 @@ func (s *Service) GetStatus(ctx context.Context, containerID string) (*Container
 	}
 
 	return &ContainerInfo{
-		ID:     inspect.ID[:12],
+		ID:     shortID(inspect.ID),
 		Names:  []string{inspect.Name},
 		Status: inspect.State.Status,
 		State:  inspect.State.Status,
@@ -179,6 +202,13 @@ func (s *Service) Create(ctx context.Context, name string, imageName string, por
 		return "", fmt.Errorf("reading pull output: %w", err)
 	}
 
+	// The pull can take minutes. Re-resolve the binds right before creating the
+	// container so a path swapped for a symlink in the meantime is not handed to
+	// Docker under its previously validated name.
+	if err := s.reverifyBinds(volumes, binds); err != nil {
+		return "", err
+	}
+
 	// Port configuration
 	exposedPorts, portBindings, err := nat.ParsePortSpecs(ports)
 	if err != nil {
@@ -248,7 +278,7 @@ func (s *Service) List(ctx context.Context) ([]ContainerInfo, error) {
 		}
 
 		infoList = append(infoList, ContainerInfo{
-			ID:     c.ID[:12],
+			ID:     shortID(c.ID),
 			Names:  c.Names,
 			Status: c.Status,
 			State:  c.State,
