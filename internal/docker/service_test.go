@@ -170,3 +170,11 @@ func TestService(t *testing.T) {
 		}
 	})
 }
+
+func TestShortID(t *testing.T) {
+	for in, want := range map[string]string{"": "", "abc": "abc", "1234567890abcdef": "1234567890ab"} {
+		if got := shortID(in); got != want {
+			t.Errorf("shortID(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
