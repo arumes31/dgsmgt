@@ -12,3 +12,6 @@ vendor/
 jwt_secret
 .env
 seed_credentials.txt
+
+# Local graphify knowledge-graph output
+graphify-out/
