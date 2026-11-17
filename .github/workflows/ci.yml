@@ -52,7 +52,7 @@ jobs:
           golangci-lint run
 
       - name: Run Gosec Security Scan
-        uses: securego/gosec@4504603eddc5a91a7b7713932d6d1d3792126103 # action for the v2.30.0 image (the v2.30.0 tag still runs 2.29.0)
+        uses: securego/gosec@6d98968a868f856680ae994e88ff190d236790c0 # action for the v2.30.0 image (the v2.30.0 tag still runs 2.29.0)
         env:
           # The action image bundles an older Go with GOTOOLCHAIN=local; let it fetch the go.mod toolchain.
           GOTOOLCHAIN: auto
